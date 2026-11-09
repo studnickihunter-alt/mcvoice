@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MCProxVC — Minecraft Bedrock Proximity Voice Chat</title>
+  <title>MCProxVC — Simple Bedrock Proximity Voice Chat</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- PeerJS for WebRTC P2P Voice Streaming -->
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 
   <script>
     tailwind.config = {
@@ -27,12 +27,9 @@
           colors: {
             obsidian: {
               950: '#090b10',
-              900: '#0f1219',
-              800: '#171b26',
-              700: '#23293a',
-            },
-            emerald: {
-              450: '#10b981',
+              900: '#11151f',
+              800: '#1a2030',
+              700: '#252e42',
             }
           }
         }
@@ -43,36 +40,18 @@
   <style>
     body {
       background-color: #090b10;
-      color: #f1f5f9;
+      color: #f8fafc;
       font-family: 'Inter', sans-serif;
       overflow-x: hidden;
     }
 
-    /* Subtle Minecraft-inspired grid background */
     .bg-mc-grid {
-      background-size: 32px 32px;
+      background-size: 36px 36px;
       background-image: 
-        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
     }
 
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0f1219;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #23293a;
-      border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #3b445e;
-    }
-
-    /* Speaking pulse ring */
     @keyframes pulse-ring {
       0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
       70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
@@ -93,7 +72,6 @@
       border-color: #a855f7 !important;
     }
 
-    /* Range slider styling */
     input[type="range"] {
       -webkit-appearance: none;
       appearance: none;
@@ -101,962 +79,462 @@
       cursor: pointer;
     }
     input[type="range"]::-webkit-slider-runnable-track {
-      height: 6px;
+      height: 8px;
       border-radius: 999px;
-      background: #23293a;
+      background: #252e42;
     }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
       margin-top: -5px;
       background-color: #10b981;
-      height: 16px;
-      width: 16px;
+      height: 18px;
+      width: 18px;
       border-radius: 999px;
       border: 2px solid #090b10;
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-      transition: transform 0.15s ease;
-    }
-    input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
     }
   </style>
 </head>
 <body class="min-h-screen bg-obsidian-950 bg-mc-grid flex flex-col selection:bg-emerald-500/30 selection:text-emerald-300">
 
-  <!-- Top Navigation Bar -->
-  <header class="sticky top-0 z-30 border-b border-slate-800/80 bg-obsidian-900/90 backdrop-blur-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-      <!-- Brand -->
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
-          <i data-lucide="radio" class="w-5 h-5 text-white"></i>
+  <!-- Minimal Header -->
+  <header class="border-b border-slate-800/80 bg-obsidian-900/90 backdrop-blur-md">
+    <div class="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i data-lucide="mic" class="w-5 h-5 text-obsidian-950"></i>
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="font-extrabold text-lg tracking-tight text-white">MCProx<span class="text-emerald-400">VC</span></h1>
-            <span class="text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Bedrock /connect</span>
-          </div>
-          <p class="text-xs text-slate-400 hidden sm:block">3D Proximity Voice Fade &bull; Separate Spectator VC &bull; Instant Phone Join</p>
-        </div>
+        <span class="font-extrabold text-lg tracking-tight text-white">MCProx<span class="text-emerald-400">VC</span></span>
       </div>
 
-      <!-- Status & Quick Actions -->
-      <div class="flex items-center gap-2 sm:gap-3">
-        <!-- Cloud Sync Status Pill -->
-        <div id="cloudStatusBadge" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-800 border border-slate-800 text-xs text-slate-300">
-          <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span id="cloudStatusText">Initializing...</span>
-        </div>
-
-        <!-- Bedrock Bridge Modal Button -->
-        <button onclick="window.openModal('bridgeModal')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition">
-          <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
-          <span>Bedrock <code class="font-mono">/connect</code> Setup</span>
-        </button>
-
-        <!-- How It Works Button -->
-        <button onclick="window.openModal('helpModal')" class="p-2 rounded-lg bg-obsidian-800 hover:bg-slate-800 text-slate-300 border border-slate-800 transition" title="How it works">
-          <i data-lucide="help-circle" class="w-4 h-4"></i>
+      <div id="roomHeaderBadge" class="hidden items-center gap-2">
+        <span id="rolePill" class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Host</span>
+        <button onclick="window.leaveRoom()" class="text-xs font-semibold px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition">
+          Leave Room
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+  <!-- Main Content -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-8 flex flex-col justify-center">
 
-    <!-- ======================== LOBBY / JOIN VIEW ======================== -->
-    <section id="lobbyView" class="max-w-4xl mx-auto my-4">
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+    <!-- ======================== SCREEN 1: ULTRA-SIMPLE LOGIN / JOIN ======================== -->
+    <section id="screenLogin" class="max-w-md w-full mx-auto">
+      <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
         
-        <!-- Left Card: Join or Create Room -->
-        <div class="lg:col-span-7 bg-obsidian-900 border border-slate-800/90 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-          <div class="absolute -top-24 -right-24 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-4">
-            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-            <span>Works on PC, iOS &amp; Android Browsers</span>
+        <!-- Friend Invite Banner (Only shown when ?room=CODE is in the URL) -->
+        <div id="friendInviteHeader" class="hidden text-center space-y-2">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 text-xs font-bold">
+            <i data-lucide="headphones" class="w-3.5 h-3.5"></i>
+            <span>Friend Invite Link</span>
           </div>
-
-          <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">
-            Proximity Voice Chat for Minecraft Bedrock
-          </h2>
-          <p class="text-sm text-slate-400 mb-6">
-            Start a room, run the <code class="font-mono text-emerald-300 bg-obsidian-800 px-1.5 py-0.5 rounded">/connect</code> command in your Bedrock world, and send the room link to your friends on their phones.
-          </p>
-
-          <form id="joinForm" onsubmit="window.handleJoinSubmit(event)" class="space-y-4">
-            <!-- Gamertag Input -->
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Your Minecraft Bedrock Gamertag
-              </label>
-              <div class="relative">
-                <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-                <input
-                  id="inputGamertag"
-                  type="text"
-                  required
-                  maxlength="24"
-                  placeholder="e.g. SteveCraft99 (exact in-game name)"
-                  class="w-full pl-10 pr-4 py-2.5 rounded-xl bg-obsidian-950 border border-slate-700/80 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
-                />
-              </div>
-              <p class="text-[11px] text-slate-400 mt-1">Matches your in-game position from <code class="font-mono">querytarget @a</code>.</p>
-            </div>
-
-            <!-- Room Code + Role Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Room Code
-                </label>
-                <div class="flex gap-2">
-                  <input
-                    id="inputRoomCode"
-                    type="text"
-                    required
-                    maxlength="10"
-                    placeholder="ABCD12"
-                    class="w-full px-3.5 py-2.5 rounded-xl bg-obsidian-950 border border-slate-700/80 text-white font-mono uppercase tracking-widest text-sm focus:outline-none focus:border-emerald-500 transition"
-                  />
-                  <button
-                    type="button"
-                    onclick="window.generateRandomRoomCode()"
-                    class="px-3 py-2 rounded-xl bg-obsidian-800 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-medium transition shrink-0"
-                    title="Generate New Code"
-                  >
-                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Audio Input Selector -->
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                  Microphone Input
-                </label>
-                <select
-                  id="lobbyMicSelect"
-                  class="w-full px-3 py-2.5 rounded-xl bg-obsidian-950 border border-slate-700/80 text-slate-200 text-sm focus:outline-none focus:border-emerald-500 transition"
-                >
-                  <option value="default">Default Microphone</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Initial Mode Selection -->
-            <div class="pt-1">
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                Connection Mode
-              </label>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <label class="flex items-start gap-3 p-3 rounded-xl bg-obsidian-950/90 border border-slate-800 cursor-pointer hover:border-emerald-500/50 transition">
-                  <input type="radio" name="joinRole" value="host" checked class="mt-1 accent-emerald-500" />
-                  <div>
-                    <div class="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>Host / Bridge Relay</span>
-                      <span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300">PC / World Host</span>
-                    </div>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Connects to Bedrock <code class="font-mono">/connect</code> or Interactive Sandbox and syncs positions to friends.</p>
-                  </div>
-                </label>
-
-                <label class="flex items-start gap-3 p-3 rounded-xl bg-obsidian-950/90 border border-slate-800 cursor-pointer hover:border-emerald-500/50 transition">
-                  <input type="radio" name="joinRole" value="client" class="mt-1 accent-emerald-500" />
-                  <div>
-                    <div class="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>Friend / Phone Client</span>
-                      <span class="px-1.5 py-0.5 text-[10px] rounded bg-cyan-500/20 text-cyan-300">Any Device</span>
-                    </div>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Just enter the Room Code &amp; Gamertag on your phone—no port forwarding needed.</p>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <!-- Submit Button -->
-            <button
-              type="submit"
-              class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-obsidian-950 font-extrabold text-sm tracking-wide shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition transform active:scale-[0.99]"
-            >
-              <i data-lucide="mic" class="w-4 h-4"></i>
-              <span>Connect to Proximity Voice Room</span>
-            </button>
-          </form>
+          <h1 class="text-2xl font-extrabold text-white">Join Voice Room <span id="inviteRoomCodeLabel" class="text-emerald-400 font-mono">#------</span></h1>
+          <p class="text-xs text-slate-400">Enter your exact Minecraft name below to connect your microphone.</p>
         </div>
 
-        <!-- Right Card: Feature Breakdown & Quick Bridge Preview -->
-        <div class="lg:col-span-5 flex flex-col justify-between bg-obsidian-900/70 border border-slate-800/80 rounded-2xl p-6 space-y-6">
-          <div>
-            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 mb-4 flex items-center gap-2">
-              <i data-lucide="layers" class="w-4 h-4 text-emerald-400"></i>
-              <span>How MCProxVC Works</span>
-            </h3>
+        <!-- Standard Main Header (Shown when no ?room=CODE is in the URL) -->
+        <div id="mainLoginHeader" class="text-center space-y-2">
+          <h1 class="text-2xl font-extrabold text-white">Minecraft Proximity Voice Chat</h1>
+          <p class="text-xs text-slate-400">One-click voice rooms with automatic distance fade &amp; Spectator VC.</p>
+        </div>
 
-            <div class="space-y-4">
-              <div class="flex gap-3">
-                <div class="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">1</div>
-                <div>
-                  <h4 class="text-xs font-bold text-white">Start a Room &amp; Connect Bedrock</h4>
-                  <p class="text-xs text-slate-400 mt-0.5">Run the included 1-file <code class="font-mono text-slate-200">bridge.js</code> or use a tunnel, then type <code class="font-mono text-emerald-300">/connect 127.0.0.1:8080</code> in your Bedrock world.</p>
-                </div>
-              </div>
+        <!-- Step 1: Exact Minecraft Name Input (Spaces Allowed) -->
+        <div>
+          <label for="inputMcName" class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-2">
+            Your Exact Minecraft Name
+          </label>
+          <input
+            id="inputMcName"
+            type="text"
+            maxlength="32"
+            placeholder="e.g. Hudenrilie Game"
+            class="w-full px-4 py-3.5 rounded-2xl bg-obsidian-950 border border-slate-700 text-white placeholder-slate-500 text-base font-medium focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
+          />
+          <p class="text-[11px] text-slate-400 mt-1.5">
+            Spaces are supported — type it exactly as it appears above your character (no quotes needed).
+          </p>
+        </div>
 
-              <div class="flex gap-3">
-                <div class="w-7 h-7 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">2</div>
-                <div>
-                  <h4 class="text-xs font-bold text-white">Send Room Link to Friends</h4>
-                  <p class="text-xs text-slate-400 mt-0.5">Friends open the shareable link on their phone or PC, type their Minecraft username, and join the voice mesh.</p>
-                </div>
-              </div>
+        <!-- FRIEND INVITE VIEW: Single Big Green Join Button -->
+        <div id="friendInviteActions" class="hidden">
+          <button
+            type="button"
+            onclick="window.joinFromInviteUrl()"
+            class="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-base shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition active:scale-[0.99]"
+          >
+            <i data-lucide="mic" class="w-5 h-5"></i>
+            <span>Join Voice Chat</span>
+          </button>
+        </div>
 
-              <div class="flex gap-3">
-                <div class="w-7 h-7 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">3</div>
-                <div>
-                  <h4 class="text-xs font-bold text-white">3D Voice Fade &amp; Spectator VC</h4>
-                  <p class="text-xs text-slate-400 mt-0.5">Voices pan in 3D stereo and fade smoothly with distance. Dead or <code class="font-mono text-purple-300">spectator</code> players automatically switch to a private ghost channel!</p>
-                </div>
-              </div>
-            </div>
+        <!-- MAIN VIEW: Start Hosting Button + Divider + Join by Code -->
+        <div id="mainLoginActions" class="space-y-6">
+          <button
+            type="button"
+            onclick="window.startHostingRoom()"
+            class="w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-base shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 transition active:scale-[0.99]"
+          >
+            <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+            <span>Start Hosting Room</span>
+          </button>
+
+          <div class="relative flex py-1 items-center">
+            <div class="flex-grow border-t border-slate-800"></div>
+            <span class="flex-shrink mx-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Or Join a Friend</span>
+            <div class="flex-grow border-t border-slate-800"></div>
           </div>
 
-          <!-- Instant Demo Callout -->
-          <div class="p-4 rounded-xl bg-gradient-to-br from-obsidian-800 to-obsidian-900 border border-slate-700/70">
-            <div class="flex items-center justify-between mb-1.5">
-              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                <i data-lucide="Compass" class="w-3.5 h-3.5"></i>
-                Interactive 3D Audio Sandbox Included
-              </span>
-              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">No Server Needed to Test</span>
-            </div>
-            <p class="text-xs text-slate-400">
-              Want to test the distance fade and Spectator VC right now? Join any room and drag players around the live radar or spawn simulated voice bots!
-            </p>
+          <div class="flex gap-2">
+            <input
+              id="inputJoinCode"
+              type="text"
+              maxlength="8"
+              placeholder="6-Letter Code"
+              class="w-full px-4 py-3 rounded-2xl bg-obsidian-950 border border-slate-700 text-white font-mono uppercase tracking-widest text-sm focus:outline-none focus:border-emerald-500 transition"
+            />
+            <button
+              type="button"
+              onclick="window.joinWithCodeInput()"
+              class="px-5 py-3 rounded-2xl bg-obsidian-800 hover:bg-slate-700 text-white font-bold text-sm border border-slate-700 shrink-0 transition"
+            >
+              Join Friend's Room
+            </button>
           </div>
         </div>
 
       </div>
     </section>
 
-    <!-- ======================== ACTIVE ROOM DASHBOARD ======================== -->
-    <section id="roomView" class="hidden space-y-6">
-      
-      <!-- Top Bar: Room Info, Bedrock /connect Command, Share Link -->
-      <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
-          <!-- Room Badge & Current Player -->
-          <div class="flex flex-wrap items-center gap-3">
-            <div class="px-3.5 py-2 rounded-xl bg-obsidian-950 border border-slate-800 flex items-center gap-2.5">
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Room Code</div>
-                <div class="flex items-center gap-2">
-                  <span id="displayRoomCode" class="font-mono font-extrabold text-lg text-emerald-400 tracking-wider">------</span>
-                  <button onclick="window.copyShareLink()" class="text-xs px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-medium flex items-center gap-1 transition" title="Copy Invite Link for Friends">
-                    <i data-lucide="share-2" class="w-3 h-3"></i>
-                    <span>Copy Invite Link</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+    <!-- ======================== SCREEN 2: ACTIVE VOICE ROOM ======================== -->
+    <section id="screenRoom" class="hidden space-y-6">
 
-            <!-- Bedrock /connect Quick Command Box -->
-            <div class="px-3.5 py-2 rounded-xl bg-obsidian-950 border border-slate-800 flex items-center gap-3">
-              <div>
-                <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <span>Bedrock World Command</span>
-                  <span id="wsBridgeIndicator" class="inline-block w-2 h-2 rounded-full bg-amber-400" title="Sandbox / Cloud Relay Mode"></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <code id="displayConnectCmd" class="font-mono text-xs sm:text-sm text-indigo-300">/connect 127.0.0.1:8080</code>
-                  <button onclick="window.copyConnectCommand()" class="text-xs px-2 py-0.5 rounded bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-medium flex items-center gap-1 transition">
-                    <i data-lucide="copy" class="w-3 h-3"></i>
-                    <span>Copy</span>
-                  </button>
-                </div>
+      <!-- PERSONAL AUDIO BAR (Shown to Everyone) -->
+      <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-extrabold text-base" id="myAvatarText">
+            ME
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="myDisplayName" class="font-bold text-base text-white">Hudenrilie Game</span>
+              <span id="myStatusBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">Alive VC</span>
+            </div>
+            <!-- Mic Input Activity Bar -->
+            <div class="flex items-center gap-2 mt-1.5">
+              <span class="text-[11px] text-slate-400">Mic:</span>
+              <div class="w-28 h-2 rounded-full bg-obsidian-950 border border-slate-800 overflow-hidden">
+                <div id="myMicBar" class="h-full bg-emerald-400 transition-all duration-75" style="width: 0%"></div>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Voice Controls & Spectator Toggle -->
-          <div class="flex flex-wrap items-center gap-2.5">
-            <!-- Alive vs Spectator Mode Switch -->
-            <button
-              id="btnToggleSpectator"
-              onclick="window.toggleMySpectatorMode()"
-              class="px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border transition shadow-md bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25"
-            >
-              <i id="iconMyState" data-lucide="shield" class="w-4 h-4"></i>
-              <span id="labelMyState">Mode: ALIVE (Proximity VC)</span>
-            </button>
+        <!-- Big Easy Audio Buttons -->
+        <div class="flex flex-wrap items-center justify-center gap-2.5 w-full sm:w-auto">
+          <button
+            id="btnMuteMic"
+            onclick="window.toggleMuteMic()"
+            class="flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition"
+          >
+            <i id="iconMuteMic" data-lucide="mic" class="w-4 h-4"></i>
+            <span id="labelMuteMic">Mute Mic</span>
+          </button>
 
-            <!-- Mic Mute Button -->
-            <button
-              id="btnToggleMic"
-              onclick="window.toggleMicMute()"
-              class="px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition"
-            >
-              <i id="iconMic" data-lucide="mic" class="w-4 h-4"></i>
-              <span id="labelMic">Mic On</span>
-            </button>
+          <button
+            id="btnDeafen"
+            onclick="window.toggleDeafenAudio()"
+            class="flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-obsidian-800 border border-slate-700 text-slate-200 hover:bg-slate-700 transition"
+          >
+            <i id="iconDeafen" data-lucide="headphones" class="w-4 h-4"></i>
+            <span id="labelDeafen">Deafen</span>
+          </button>
 
-            <!-- Deafen Button -->
-            <button
-              id="btnToggleDeafen"
-              onclick="window.toggleDeafen()"
-              class="px-3 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 bg-obsidian-800 border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
-              title="Deafen Incoming Audio"
-            >
-              <i id="iconDeafen" data-lucide="headphones" class="w-4 h-4"></i>
-              <span id="labelDeafen" class="hidden sm:inline">Audio On</span>
-            </button>
-
-            <!-- Leave Room -->
-            <button
-              onclick="window.leaveRoom()"
-              class="px-3 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 transition"
-              title="Disconnect from Room"
-            >
-              <i data-lucide="phone-off" class="w-4 h-4"></i>
-              <span class="hidden sm:inline">Leave</span>
-            </button>
-          </div>
-
+          <button
+            id="btnSpectatorToggle"
+            onclick="window.toggleManualSpectator()"
+            class="w-full sm:w-auto px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-purple-500/15 border border-purple-500/30 text-purple-300 hover:bg-purple-500/25 transition"
+          >
+            <i data-lucide="ghost" class="w-4 h-4"></i>
+            <span id="labelSpectatorToggle">Switch to Spectator VC</span>
+          </button>
         </div>
       </div>
 
-      <!-- Main 3-Column Grid: Left (Settings & Bridge), Center (Live Proximity Radar), Right (Players & Channels) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-
-        <!-- ================= LEFT COLUMN: VOICE RANGE & BRIDGE CONFIG (4 cols) ================= -->
-        <div class="lg:col-span-4 space-y-6">
-          
-          <!-- Custom Voice Range & Fade Card -->
-          <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div class="flex items-center gap-2">
-                <i data-lucide="sliders" class="w-4 h-4 text-emerald-400"></i>
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider">Voice Range &amp; Fade</h3>
-              </div>
-              <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Room Synced</span>
-            </div>
-
-            <!-- Max Voice Distance Slider -->
-            <div>
-              <div class="flex justify-between text-xs mb-1.5">
-                <span class="text-slate-300 font-medium">Max Hearing Range</span>
-                <span class="font-mono font-bold text-emerald-400"><span id="valMaxRange">30</span> blocks</span>
-              </div>
-              <input
-                id="sliderMaxRange"
-                type="range"
-                min="8"
-                max="120"
-                step="1"
-                value="30"
-                oninput="window.updateVoiceSettingsFromUI()"
-                class="w-full"
-              />
-              <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
-                <span>8m (Whisper)</span>
-                <span>30m (Default)</span>
-                <span>120m (Shout)</span>
-              </div>
-            </div>
-
-            <!-- Fade Start / Min Range Slider -->
-            <div>
-              <div class="flex justify-between text-xs mb-1.5">
-                <span class="text-slate-300 font-medium">Full Volume Radius (Fade Start)</span>
-                <span class="font-mono font-bold text-cyan-400"><span id="valMinRange">6</span> blocks</span>
-              </div>
-              <input
-                id="sliderMinRange"
-                type="range"
-                min="1"
-                max="40"
-                step="1"
-                value="6"
-                oninput="window.updateVoiceSettingsFromUI()"
-                class="w-full"
-              />
-              <p class="text-[11px] text-slate-400 mt-1">
-                100% volume inside <span id="descMinRange" class="text-slate-200 font-mono">6m</span>, fades smoothly to 0% at <span id="descMaxRange" class="text-slate-200 font-mono">30m</span>.
-              </p>
-            </div>
-
-            <!-- Voice Falloff Curve -->
-            <div class="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Fade Curve</label>
-                <select
-                  id="selectFalloffCurve"
-                  onchange="window.updateVoiceSettingsFromUI()"
-                  class="w-full px-2.5 py-2 rounded-xl bg-obsidian-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="smoothstep">Smooth S-Curve</option>
-                  <option value="linear">Linear Fade</option>
-                  <option value="exponential">Realistic Inverse</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Spectators Hear Alive</label>
-                <select
-                  id="selectSpecRule"
-                  onchange="window.updateVoiceSettingsFromUI()"
-                  class="w-full px-2.5 py-2 rounded-xl bg-obsidian-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="proximity">In Proximity</option>
-                  <option value="global">Globally (100%)</option>
-                  <option value="muted">Isolated (Spectators Only)</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- 3D HRTF Spatial Panning Toggle -->
-            <div class="pt-1 flex items-center justify-between p-3 rounded-xl bg-obsidian-950 border border-slate-800/80">
-              <div>
-                <div class="text-xs font-semibold text-white">3D Directional Panning (HRTF)</div>
-                <div class="text-[11px] text-slate-400">Stereo left/right audio based on head rotation</div>
-              </div>
-              <input
-                id="checkSpatial3D"
-                type="checkbox"
-                checked
-                onchange="window.updateVoiceSettingsFromUI()"
-                class="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
-              />
-            </div>
-
-            <!-- Live Falloff Preview Mini-Graph -->
-            <div class="p-3 rounded-xl bg-obsidian-950 border border-slate-800/80">
-              <div class="flex justify-between items-center text-[11px] text-slate-400 mb-1.5">
-                <span>Voice Attenuation Curve</span>
-                <span id="curveFormulaLabel" class="font-mono text-emerald-400">Smoothstep</span>
-              </div>
-              <canvas id="curveCanvas" width="280" height="54" class="w-full h-[54px] block"></canvas>
-            </div>
-          </div>
-
-          <!-- Bedrock WebSocket Bridge Connection Card -->
-          <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div class="flex items-center gap-2">
-                <i data-lucide="plug-zap" class="w-4 h-4 text-indigo-400"></i>
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider">Bedrock Bridge Link</h3>
-              </div>
-              <span id="bridgeStateBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">Sandbox Active</span>
-            </div>
-
-            <p class="text-xs text-slate-400 leading-relaxed">
-              Connect your browser to your local or tunneled <code class="font-mono text-indigo-300">bridge.js</code> WebSocket server. Coordinates received here automatically sync to all friends in the room!
-            </p>
-
-            <div class="space-y-2">
-              <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Bridge WebSocket URL</label>
-              <div class="flex gap-2">
-                <input
-                  id="inputBridgeWsUrl"
-                  type="text"
-                  value="ws://127.0.0.1:8080"
-                  placeholder="ws://127.0.0.1:8080"
-                  class="w-full px-3 py-2 rounded-xl bg-obsidian-950 border border-slate-700 font-mono text-xs text-white focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  id="btnConnectBridge"
-                  onclick="window.toggleBridgeWebSocket()"
-                  class="px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-obsidian-950 font-bold text-xs shrink-0 transition"
-                >
-                  Connect WS
-                </button>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between pt-1 text-xs">
-              <button onclick="window.openModal('bridgeModal')" class="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                <span>Get <code class="font-mono">bridge.js</code> Script</span>
-              </button>
-              <span id="lastPacketTime" class="text-[11px] font-mono text-slate-500">Packets: 0</span>
-            </div>
-          </div>
-
+      <!-- FRIEND READ-ONLY BADGE (Shown ONLY to Friends / Non-Hosts) -->
+      <div id="friendReadOnlyBanner" class="hidden bg-obsidian-900/90 border border-slate-800 rounded-2xl px-5 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-xs text-slate-300">
+          <i data-lucide="lock" class="w-4 h-4 text-emerald-400"></i>
+          <span>Voice Distance: <strong id="friendRangeValue" class="text-white font-mono">35</strong> <strong>blocks</strong> (Locked by Host)</span>
         </div>
+        <span id="friendSpecBadge" class="text-[11px] font-medium text-purple-300">Spectator VC Enabled</span>
+      </div>
 
-        <!-- ================= CENTER COLUMN: INTERACTIVE 3D RADAR & SANDBOX (5 cols) ================= -->
-        <div class="lg:col-span-5 space-y-4">
-          <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col">
-            
-            <!-- Radar Header -->
-            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <div>
-                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <i data-lucide="radar" class="w-4 h-4 text-emerald-400"></i>
-                  <span>Live Proximity Radar</span>
-                </h3>
-                <p class="text-[11px] text-slate-400">Drag any player token (or use WASD) to test real-time voice fade &amp; 3D panning</p>
-              </div>
+      <!-- HOST CONTROLS PANEL (Shown ONLY to the Host — Completely Hidden for Friends) -->
+      <div id="hostOnlyPanel" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        <!-- Host Box 1: Step 1: Invite Friends -->
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-400">Step 1: Invite Friends</span>
+            <h3 class="text-sm font-bold text-white">Send Link to Friends</h3>
+            <p class="text-xs text-slate-400">Friends open this link on their phone or PC and type their Minecraft name.</p>
+          </div>
 
-              <!-- My Coordinates Pill -->
-              <div class="px-2.5 py-1 rounded-lg bg-obsidian-950 border border-slate-800 font-mono text-xs text-emerald-400" id="myCoordsDisplay">
-                X: 0, Y: 64, Z: 0
-              </div>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between px-3.5 py-2 rounded-xl bg-obsidian-950 border border-slate-800">
+              <span class="text-xs text-slate-400">Room Code:</span>
+              <span id="hostRoomCodeDisplay" class="font-mono font-extrabold text-base text-emerald-400 tracking-widest">------</span>
             </div>
-
-            <!-- Interactive Radar Canvas Container -->
-            <div class="relative w-full aspect-square max-h-[420px] mx-auto rounded-2xl overflow-hidden border border-slate-800 bg-obsidian-950 shadow-inner">
-              <canvas id="radarCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing touch-none"></canvas>
-
-              <!-- Overlay Legend Top-Left -->
-              <div class="absolute top-3 left-3 pointer-events-none space-y-1 bg-obsidian-900/85 backdrop-blur-sm border border-slate-800/80 rounded-xl px-3 py-2 text-[11px]">
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span>
-                  <span class="text-slate-200 font-medium">You (Listener Center)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span>
-                  <span class="text-slate-300">Alive Players (Proximity)</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span>
-                  <span class="text-purple-300">Spectators (Ghost VC)</span>
-                </div>
-              </div>
-
-              <!-- Overlay Rotation Controls Bottom-Right -->
-              <div class="absolute bottom-3 right-3 flex items-center gap-1.5 bg-obsidian-900/90 backdrop-blur-sm border border-slate-800 rounded-xl p-1.5">
-                <button onclick="window.rotatePlayer(-30)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition" title="Turn Head Left">
-                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-                </button>
-                <span id="myYawDisplay" class="font-mono text-[11px] text-slate-300 px-1">0&deg;</span>
-                <button onclick="window.rotatePlayer(30)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 transition" title="Turn Head Right">
-                  <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Sandbox Bot & Synth Audio Toolbar -->
-            <div class="mt-4 pt-3 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <button
-                  onclick="window.spawnDemoBot('alive')"
-                  class="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition"
-                >
-                  <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
-                  <span>+ Alive Bot</span>
-                </button>
-
-                <button
-                  onclick="window.spawnDemoBot('spectator')"
-                  class="px-3 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 text-xs font-semibold flex items-center gap-1.5 transition"
-                >
-                  <i data-lucide="ghost" class="w-3.5 h-3.5"></i>
-                  <span>+ Spectator Bot</span>
-                </button>
-              </div>
-
-              <!-- Bot Voice Audio Synth Toggle -->
-              <div class="flex items-center gap-2">
-                <button
-                  id="btnToggleBotVoice"
-                  onclick="window.toggleBotSynthAudio()"
-                  class="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition"
-                  title="Play spatial test voice from bots to hear distance fade & 3D stereo panning"
-                >
-                  <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
-                  <span id="labelBotVoice">Test Voice Audio: OFF</span>
-                </button>
-              </div>
-            </div>
-
+            <button
+              onclick="window.copyFriendInviteLink()"
+              class="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-md transition"
+            >
+              <i data-lucide="share-2" class="w-4 h-4"></i>
+              <span>Copy Friend Invite Link</span>
+            </button>
           </div>
         </div>
 
-        <!-- ================= RIGHT COLUMN: VOICE CHANNELS (ALIVE vs SPECTATOR VC) (3 cols) ================= -->
-        <div class="lg:col-span-3 space-y-6">
-          
-          <!-- Channel 1: ALIVE PROXIMITY VOICE CHAT -->
-          <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-              <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400"></span>
-                <h3 class="text-xs font-extrabold text-white uppercase tracking-wider">In-Game Proximity VC</h3>
-              </div>
-              <span id="countAlivePlayers" class="text-xs font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300">0</span>
-            </div>
-
-            <p class="text-[11px] text-slate-400 mb-3">
-              Volume fades with 3D distance (<span id="channelRangeLabel" class="font-mono text-slate-200">6m–30m</span>). Cannot hear Spectators.
-            </p>
-
-            <!-- Alive Players List -->
-            <div id="alivePlayersList" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-              <!-- Populated dynamically -->
-            </div>
-          </div>
-
-          <!-- Channel 2: SEPARATE SPECTATOR VOICE CHAT -->
-          <div class="bg-obsidian-900 border border-purple-500/30 rounded-2xl p-4 shadow-xl relative overflow-hidden">
-            <div class="absolute -top-12 -right-12 w-28 h-28 bg-purple-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-              <div class="flex items-center gap-2">
-                <i data-lucide="ghost" class="w-4 h-4 text-purple-400"></i>
-                <h3 class="text-xs font-extrabold text-purple-200 uppercase tracking-wider">Spectator VC (Dead)</h3>
-              </div>
-              <span id="countSpecPlayers" class="text-xs font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">0</span>
-            </div>
-
-            <p class="text-[11px] text-purple-200/70 mb-3">
-              Global 100% volume between Spectators. Alive players cannot hear this channel!
-            </p>
-
-            <!-- Spectator Players List -->
-            <div id="specPlayersList" class="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
-              <!-- Populated dynamically -->
-            </div>
-          </div>
-
-          <!-- Local Mic Level Meter Card -->
-          <div class="bg-obsidian-900 border border-slate-800 rounded-2xl p-4">
-            <div class="flex items-center justify-between text-xs mb-2">
-              <span class="font-semibold text-slate-300 flex items-center gap-1.5">
-                <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i>
-                Your Mic Input Level
+        <!-- Host Box 2: Step 2: Connect Minecraft -->
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-400">Step 2: Connect Minecraft</span>
+              <!-- Live Minecraft Status Pill -->
+              <span id="mcStatusPill" class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                <span id="mcStatusDot" class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span id="mcStatusText">Waiting for Minecraft...</span>
               </span>
-              <span id="micDbLabel" class="font-mono text-[11px] text-slate-400">Ready</span>
             </div>
-            <div class="w-full h-2.5 rounded-full bg-obsidian-950 border border-slate-800 overflow-hidden">
-              <div id="micLevelBar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-75" style="width: 0%"></div>
-            </div>
+            <h3 class="text-sm font-bold text-white">Paste in Minecraft Chat</h3>
+            <p class="text-xs text-slate-400">Turn Cheats ON in your world and run this command:</p>
           </div>
 
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-obsidian-950 border border-slate-800">
+              <code id="hostConnectCmd" class="font-mono text-xs text-indigo-300 truncate">/connect 127.0.0.1:8080</code>
+              <button
+                onclick="window.copyMinecraftCommand()"
+                class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-bold shrink-0 transition"
+              >
+                Copy
+              </button>
+            </div>
+
+            <button
+              onclick="window.openFixModal()"
+              class="w-full py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 transition"
+            >
+              <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+              <span>Minecraft saying "Can't Connect"? Fix in 1 Click</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Host Box 3: Host Settings (Only You Can Change This) -->
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between space-y-4">
+          <div class="space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-400">Host Settings</span>
+            <h3 class="text-sm font-bold text-white">Only You Can Change This</h3>
+          </div>
+
+          <!-- Single Simple Slider: Voice Range -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-300 font-semibold">Voice Range:</span>
+              <span class="font-mono font-bold text-emerald-400"><span id="hostRangeLabel">35</span> Blocks</span>
+            </div>
+            <input
+              id="hostRangeSlider"
+              type="range"
+              min="10"
+              max="100"
+              step="1"
+              value="35"
+              oninput="window.onHostSettingsChange()"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Single Toggle: Separate Spectator VC -->
+          <label class="flex items-center justify-between p-2.5 rounded-xl bg-obsidian-950 border border-slate-800 cursor-pointer">
+            <span class="text-xs font-semibold text-slate-200">Separate Spectator Voice Chat</span>
+            <input
+              id="hostSpecToggle"
+              type="checkbox"
+              checked
+              onchange="window.onHostSettingsChange()"
+              class="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+            />
+          </label>
+
+          <!-- Small Toggle: Test Distances (Host Preview) -->
+          <label class="flex items-center justify-between pt-1 text-[11px] text-slate-400 cursor-pointer">
+            <span>Test Distances (Host Preview)</span>
+            <input
+              id="hostTestModeToggle"
+              type="checkbox"
+              onchange="window.toggleHostTestPreview()"
+              class="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer"
+            />
+          </label>
         </div>
 
       </div>
+
+      <!-- CONNECTED PLAYERS LIST (Alive Proximity VC + Spectator VC) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Alive Proximity Players -->
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <h2 class="text-sm font-extrabold text-white uppercase tracking-wider">In-Game Voice Chat</h2>
+            </div>
+            <span id="aliveCountBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">1</span>
+          </div>
+          <div id="alivePlayersContainer" class="space-y-2.5"></div>
+        </div>
+
+        <!-- Spectator Voice Chat -->
+        <div class="bg-obsidian-900 border border-purple-500/30 rounded-3xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="ghost" class="w-4 h-4 text-purple-400"></i>
+              <h2 class="text-sm font-extrabold text-purple-200 uppercase tracking-wider">Spectator VC (Dead / Ghost)</h2>
+            </div>
+            <span id="specCountBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">0</span>
+          </div>
+          <div id="specPlayersContainer" class="space-y-2.5"></div>
+        </div>
+
+      </div>
+
     </section>
 
   </main>
 
-  <!-- ======================== MODAL: BEDROCK /CONNECT BRIDGE SCRIPT ======================== -->
-  <div id="bridgeModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-    <div class="bg-obsidian-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-      <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-2.5">
-          <div class="p-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400">
-            <i data-lucide="terminal" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-white">Minecraft Bedrock <code class="font-mono text-indigo-300">/connect</code> Bridge Server</h3>
-            <p class="text-xs text-slate-400">Streams real-time player coordinates &amp; spectator state from your Bedrock world</p>
-          </div>
-        </div>
-        <button onclick="window.closeModal('bridgeModal')" class="p-1.5 rounded-lg bg-obsidian-800 hover:bg-slate-800 text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto space-y-5 text-xs text-slate-300">
-        <!-- Step-by-step instructions -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="p-3.5 rounded-xl bg-obsidian-950 border border-slate-800">
-            <div class="font-bold text-white mb-1 flex items-center gap-1.5">
-              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono flex items-center justify-center">1</span>
-              <span>Save &amp; Run <code class="font-mono">bridge.js</code></span>
-            </div>
-            <p class="text-slate-400">Install Node.js, run <code class="font-mono text-emerald-300">npm i ws</code>, and start <code class="font-mono text-emerald-300">node bridge.js</code> on the PC hosting or connected to the world.</p>
-          </div>
-
-          <div class="p-3.5 rounded-xl bg-obsidian-950 border border-slate-800">
-            <div class="font-bold text-white mb-1 flex items-center gap-1.5">
-              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono flex items-center justify-center">2</span>
-              <span>Type <code class="font-mono">/connect</code> in Bedrock</span>
-            </div>
-            <p class="text-slate-400">Open your Bedrock world (enable Cheats) and run <code class="font-mono text-indigo-300">/connect 127.0.0.1:8080</code> in chat.</p>
-          </div>
-
-          <div class="p-3.5 rounded-xl bg-obsidian-950 border border-slate-800">
-            <div class="font-bold text-white mb-1 flex items-center gap-1.5">
-              <span class="w-5 h-5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono flex items-center justify-center">3</span>
-              <span>Friends Join via Phone Link</span>
-            </div>
-            <p class="text-slate-400">Click <strong>Connect WS</strong> in this web app. Your browser relays positions to all friends in your Room Code automatically!</p>
-          </div>
-        </div>
-
-        <!-- Code Block -->
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-mono font-semibold text-slate-300">bridge.js (Node.js Bedrock WebSocket Bridge)</span>
-            <div class="flex gap-2">
-              <button onclick="window.copyBridgeScript()" class="px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 font-semibold flex items-center gap-1.5 transition">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                <span>Copy Code</span>
-              </button>
-              <button onclick="window.downloadBridgeScript()" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-semibold flex items-center gap-1.5 transition">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                <span>Download bridge.js</span>
-              </button>
-            </div>
-          </div>
-          <pre id="bridgeCodeBlock" class="p-4 rounded-xl bg-obsidian-950 border border-slate-800 font-mono text-[11px] text-emerald-300 overflow-x-auto leading-relaxed select-all"></pre>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================== MODAL: HOW IT WORKS / HELP ======================== -->
-  <div id="helpModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-    <div class="bg-obsidian-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4">
+  <!-- ======================== 1-CLICK MINECRAFT FIX MODAL (HOST ONLY) ======================== -->
+  <div id="fixMinecraftModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+    <div class="bg-obsidian-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5">
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="help-circle" class="w-5 h-5 text-emerald-400"></i>
-          <span>MCProxVC Quick Guide</span>
-        </h3>
-        <button onclick="window.closeModal('helpModal')" class="p-1 rounded-lg bg-obsidian-800 text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
+        <div class="flex items-center gap-2">
+          <i data-lucide="zap" class="w-5 h-5 text-amber-400"></i>
+          <h3 class="text-base font-extrabold text-white">Fix Minecraft "Can't Connect" in 2 Steps</h3>
+        </div>
+        <button onclick="window.closeFixModal()" class="p-1.5 rounded-xl bg-obsidian-800 text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
-      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
-        <p><strong class="text-white">1. Voice Fade &amp; Custom Range:</strong> The host can adjust the <em>Max Hearing Range</em> (up to 120 blocks) and <em>Full Volume Radius</em> at any time. Every player's Web Audio <code class="font-mono text-emerald-300">PannerNode</code> and <code class="font-mono text-emerald-300">GainNode</code> updates in real time.</p>
-        <p><strong class="text-white">2. Separate Spectator VC:</strong> When a player dies or enters <code class="font-mono text-purple-300">/gamemode spectator</code> (or clicks the <em>Mode: Spectator</em> button), they move to the Spectator VC channel. Alive players cannot hear Spectators, while Spectators can talk to each other globally across the map!</p>
-        <p><strong class="text-white">3. In-Game Chat Commands:</strong> When connected via <code class="font-mono">/connect</code>, players can also type <code class="font-mono text-emerald-300">!spec</code>, <code class="font-mono text-emerald-300">!alive</code>, or <code class="font-mono text-emerald-300">!range 45</code> directly in Minecraft Bedrock chat to switch voice channels or change the proximity radius!</p>
+      <div class="space-y-4 text-xs text-slate-300">
+        <div class="p-4 rounded-2xl bg-obsidian-950 border border-slate-800 space-y-1.5">
+          <div class="font-bold text-white text-sm">1. Turn on WebSockets in Minecraft Settings</div>
+          <p class="text-slate-400 leading-relaxed">
+            In Minecraft Bedrock, open <strong>Settings &rarr; Creator</strong>, turn <strong>Enable WebSockets</strong> ON, and turn <strong>Require Encrypted WebSockets</strong> OFF.
+          </p>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-obsidian-950 border border-slate-800 space-y-3">
+          <div class="font-bold text-white text-sm">2. Run the 1-Click Local Connector (Zero Installs)</div>
+          <p class="text-slate-400 leading-relaxed">
+            If you are playing on Windows PC, click below to download <strong>Connect-Minecraft.bat</strong>. Double-click it to automatically unlock Windows loopback and connect your world to this browser tab (no Node.js or extra downloads needed):
+          </p>
+          <button
+            onclick="window.downloadOneClickBat()"
+            class="w-full py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg transition"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>Download Connect-Minecraft.bat (1-Click Connector)</span>
+          </button>
+        </div>
       </div>
 
-      <div class="pt-2 flex justify-end">
-        <button onclick="window.closeModal('helpModal')" class="px-4 py-2 rounded-xl bg-emerald-500 text-obsidian-950 font-bold text-xs">Got It</button>
+      <div class="flex justify-end">
+        <button onclick="window.closeFixModal()" class="px-5 py-2.5 rounded-xl bg-obsidian-800 hover:bg-slate-700 text-white font-bold text-xs">
+          Done
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Toast Notification Container -->
+  <!-- Toast Container & Hidden Audio Container -->
   <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
-
-  <!-- Hidden container for remote WebRTC audio elements (ensures mobile Safari/Chrome playback) -->
   <div id="remoteAudioContainer" class="hidden"></div>
 
-  <!-- ======================== APPLICATION LOGIC & FIREBASE / WEBRTC / WEB AUDIO ======================== -->
+  <!-- ======================== CORE LOGIC ======================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // ---------------------------------------------------------------------------
-    // 1. EMBEDDED NODE.JS BEDROCK /CONNECT BRIDGE SCRIPT
-    // ---------------------------------------------------------------------------
-    const BRIDGE_JS_SOURCE = `/**
- * MCProxVC — Minecraft Bedrock /connect WebSocket Bridge (bridge.js)
- * Usage:
- *   1. npm install ws
- *   2. node bridge.js
- *   3. In Minecraft Bedrock (with Cheats on), run: /connect 127.0.0.1:8080
- */
-const WebSocket = require('ws');
-const crypto = require('crypto');
-
-const PORT = process.env.PORT || 8080;
-const wss = new WebSocket.Server({ port: PORT });
-
-let bedrockSockets = new Set();
-let browserClients = new Set();
-let pendingQueries = new Map();
-let knownSpectators = new Set();
-let manualSpectators = new Set();
-let roomRangeOverride = null;
-
-console.log(\`[MCProxVC Bridge] Listening on ws://0.0.0.0:\${PORT}\`);
-console.log(\`[MCProxVC Bridge] In Minecraft Bedrock chat, type: /connect 127.0.0.1:\${PORT}\`);
-
-function sendBedrockCommand(ws, commandLine, queryType) {
-  const reqId = crypto.randomUUID();
-  pendingQueries.set(reqId, queryType);
-  ws.send(JSON.stringify({
-    header: {
-      version: 1,
-      requestId: reqId,
-      messagePurpose: 'commandRequest',
-      messageType: 'commandRequest'
-    },
-    body: {
-      version: 1,
-      commandLine: commandLine,
-      origin: { type: 'player' }
-    }
-  }));
-}
-
-wss.on('connection', (ws, req) => {
-  // Distinguish browser dashboard clients vs Minecraft Bedrock /connect client
-  ws.on('message', (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
-
-      // Handshake from Web App Dashboard
-      if (msg.type === 'MCPROX_BROWSER_HELLO') {
-        browserClients.add(ws);
-        ws.send(JSON.stringify({ type: 'BRIDGE_STATUS', bedrockConnected: bedrockSockets.size > 0 }));
-        return;
-      }
-
-      // Minecraft Bedrock Event / Command Response
-      if (msg.header) {
-        if (!bedrockSockets.has(ws)) {
-          bedrockSockets.add(ws);
-          console.log('[MCProxVC] Minecraft Bedrock World Connected!');
-        }
-
-        const purpose = msg.header.messagePurpose;
-        const reqId = msg.header.requestId;
-
-        // Handle in-game chat commands (!spec, !alive, !range 40)
-        if (purpose === 'event' && msg.body?.eventName === 'PlayerMessage') {
-          const sender = msg.body.properties?.Sender;
-          const chat = (msg.body.properties?.Message || '').trim();
-          if (sender && chat.startsWith('!')) {
-            if (chat === '!spec') manualSpectators.add(sender);
-            if (chat === '!alive') manualSpectators.delete(sender);
-            if (chat.startsWith('!range ')) {
-              const r = parseInt(chat.split(' ')[1], 10);
-              if (!isNaN(r) && r >= 5 && r <= 150) roomRangeOverride = r;
-            }
-          }
-        }
-
-        // Handle querytarget responses
-        if (purpose === 'commandResponse' && pendingQueries.has(reqId)) {
-          const qType = pendingQueries.get(reqId);
-          pendingQueries.delete(reqId);
-          const detailsRaw = msg.body?.details;
-          if (detailsRaw) {
-            const parsed = typeof detailsRaw === 'string' ? JSON.parse(detailsRaw) : detailsRaw;
-            if (Array.isArray(parsed)) {
-              if (qType === 'spectators') {
-                knownSpectators = new Set(parsed.map(p => p.uniqueId || p.name));
-              } else if (qType === 'all') {
-                const payload = {
-                  type: 'BEDROCK_POSITIONS',
-                  timestamp: Date.now(),
-                  rangeOverride: roomRangeOverride,
-                  players: parsed.map(p => {
-                    const name = p.name || p.uniqueId || 'Player';
-                    const isSpec = knownSpectators.has(p.uniqueId || name) || manualSpectators.has(name);
-                    return {
-                      gamertag: name,
-                      x: Math.round((p.position?.x || 0) * 10) / 10,
-                      y: Math.round((p.position?.y || 64) * 10) / 10,
-                      z: Math.round((p.position?.z || 0) * 10) / 10,
-                      yaw: Math.round(p.yRot || 0),
-                      mode: isSpec ? 'spectator' : 'alive'
-                    };
-                  })
-                };
-                const serialized = JSON.stringify(payload);
-                for (const client of browserClients) {
-                  if (client.readyState === WebSocket.OPEN) client.send(serialized);
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {}
-  });
-
-  // Subscribe to PlayerMessage in case this is a Bedrock client
-  ws.send(JSON.stringify({
-    header: {
-      version: 1,
-      requestId: crypto.randomUUID(),
-      messageType: 'commandRequest',
-      messagePurpose: 'subscribe'
-    },
-    body: { eventName: 'PlayerMessage' }
-  }));
-
-  ws.on('close', () => {
-    bedrockSockets.delete(ws);
-    browserClients.delete(ws);
-  });
-});
-
-// Poll player coordinates & spectator targets every 200ms
-setInterval(() => {
-  for (const mc of bedrockSockets) {
-    if (mc.readyState === WebSocket.OPEN) {
-      sendBedrockCommand(mc, 'querytarget @a[m=spectator]', 'spectators');
-      sendBedrockCommand(mc, 'querytarget @a', 'all');
-    }
-  }
-}, 200);`;
-
-    document.getElementById('bridgeCodeBlock').textContent = BRIDGE_JS_SOURCE;
-
-    // ---------------------------------------------------------------------------
-    // 2. GLOBAL APPLICATION STATE
-    // ---------------------------------------------------------------------------
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'mcproxvc-bedrock-app';
     let db = null;
     let auth = null;
     let currentUser = null;
-    let cloudAvailable = false;
+    let cloudReady = false;
 
     const state = {
       inRoom: false,
       roomCode: '',
-      role: 'host', // 'host' | 'client'
-      myId: crypto.randomUUID(),
-      myGamertag: '',
-      myPeerId: '',
-      myMode: 'alive', // 'alive' | 'spectator'
-      myPos: { x: 0, y: 64, z: 0, yaw: 0 },
+      isHost: false,
+      hostId: '',
+      myUid: crypto.randomUUID(),
+      mcName: '',
+      peerId: '',
+      isSpectator: false,
+      x: 0,
+      y: 64,
+      z: 0,
       micMuted: false,
       deafened: false,
-      micVolumeLevel: 0,
+      hostTestPreview: false,
 
-      // Room-wide Voice Configuration
+      // Host-controlled settings
       settings: {
-        maxRange: 30,
-        minRange: 6,
-        falloffCurve: 'smoothstep', // 'smoothstep' | 'linear' | 'exponential'
-        specRule: 'proximity',      // 'proximity' | 'global' | 'muted'
-        spatial3D: true
+        maxRange: 35,
+        spectatorIsolation: true
       },
 
-      // Map of participantId -> player object
-      // { id, gamertag, peerId, x, y, z, yaw, mode: 'alive'|'spectator', isBot, speaking, userVolume, mutedByMe, lastSeen }
+      // Map of uid -> player { uid, mcName, peerId, x, y, z, isSpectator, isBot, speaking, testDist }
       players: new Map(),
 
-      // WebAudio & WebRTC PeerJS
+      // Audio & WebRTC
       audioCtx: null,
       localStream: null,
       localAnalyser: null,
-      peerInstance: null,
-      activeCalls: new Map(), // peerId -> MediaConnection
-      audioNodes: new Map(),  // playerId -> { source, panner, gain, analyser, freqData, synthOsc, synthGain }
-      botSynthEnabled: false,
+      peer: null,
+      activeCalls: new Map(),
+      audioNodes: new Map(),
 
-      // Direct Bedrock WebSocket Bridge
-      bridgeSocket: null,
-      bridgeConnected: false,
-      packetCount: 0,
-
-      // Firestore Unsubscribe callbacks
-      unsubRoomDoc: null,
-      unsubPeersCol: null
+      // Automatic Minecraft WebSockets (Host Only)
+      mcSockets: new Map(),
+      mcConnected: false,
+      knownSpectatorNames: new Set(),
+      unsubRoom: null,
+      unsubPlayers: null
     };
 
-    // ---------------------------------------------------------------------------
-    // 3. INITIALIZE FIREBASE (WITH GRACEFUL LOCAL FALLBACK)
-    // ---------------------------------------------------------------------------
-    async function initCloudSync() {
-      const badgeDot = document.getElementById('cloudStatusDot');
-      const badgeText = document.getElementById('cloudStatusText');
+    // -------------------------------------------------------------------------
+    // 1. INITIALIZE FIREBASE & CHECK URL FOR ?room=CODE
+    // -------------------------------------------------------------------------
+    async function initApp() {
+      lucide.createIcons();
+
+      const params = new URLSearchParams(window.location.search);
+      const urlRoom = (params.get('room') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+      if (urlRoom) {
+        state.roomCode = urlRoom;
+        document.getElementById('friendInviteHeader').classList.remove('hidden');
+        document.getElementById('friendInviteActions').classList.remove('hidden');
+        document.getElementById('mainLoginHeader').classList.add('hidden');
+        document.getElementById('mainLoginActions').classList.add('hidden');
+        document.getElementById('inviteRoomCodeLabel').textContent = `#${urlRoom}`;
+      }
 
       try {
         if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -1065,7 +543,6 @@ setInterval(() => {
           auth = getAuth(app);
           db = getFirestore(app);
 
-          // RULE 3: Auth Before Queries
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
           } else {
@@ -1075,70 +552,348 @@ setInterval(() => {
           onAuthStateChanged(auth, (user) => {
             if (user) {
               currentUser = user;
-              state.myId = user.uid;
-              cloudAvailable = true;
-              badgeDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-              badgeText.textContent = 'Cloud Room Relay Ready';
+              state.myUid = user.uid;
+              cloudReady = true;
             }
           });
-        } else {
-          throw new Error('Standalone mode');
         }
-      } catch (err) {
-        cloudAvailable = false;
-        badgeDot.className = 'w-2 h-2 rounded-full bg-cyan-400';
-        badgeText.textContent = 'P2P + Local Bridge Mode';
+      } catch (e) {
+        cloudReady = false;
       }
+
+      requestAnimationFrame(audioLoop);
     }
 
-    // ---------------------------------------------------------------------------
-    // 4. URL PARAMETERS & MICROPHONE ENUMERATION
-    // ---------------------------------------------------------------------------
-    function initLobbyDefaults() {
-      const params = new URLSearchParams(window.location.search);
-      const roomParam = params.get('room');
-      if (roomParam) {
-        document.getElementById('inputRoomCode').value = roomParam.toUpperCase().slice(0, 10);
-        const clientRadio = document.querySelector('input[name="joinRole"][value="client"]');
-        if (clientRadio) clientRadio.checked = true;
-      } else {
-        window.generateRandomRoomCode();
-      }
-
-      // Random default Gamertag suggestion
-      const suffixes = ['Crafter', 'Miner', 'Redstone', 'Nether', 'Ender', 'Knight'];
-      const randName = suffixes[Math.floor(Math.random() * suffixes.length)] + Math.floor(10 + Math.random() * 89);
-      document.getElementById('inputGamertag').value = randName;
-
-      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-          const select = document.getElementById('lobbyMicSelect');
-          const mics = devices.filter(d => d.kind === 'audioinput');
-          if (mics.length > 0) {
-            select.innerHTML = '';
-            mics.forEach((m, idx) => {
-              const opt = document.createElement('option');
-              opt.value = m.deviceId || 'default';
-              opt.textContent = m.label || `Microphone ${idx + 1}`;
-              select.appendChild(opt);
-            });
-          }
-        }).catch(() => {});
-      }
-    }
-
-    window.generateRandomRoomCode = function () {
+    // -------------------------------------------------------------------------
+    // 2. SCREEN 1 ACTIONS: START HOSTING OR JOIN FRIEND'S ROOM
+    // -------------------------------------------------------------------------
+    function generateCode() {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      let out = '';
+      for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+      return out;
+    }
+
+    window.startHostingRoom = async function () {
+      const nameInput = document.getElementById('inputMcName').value.trim();
+      if (!nameInput) {
+        showToast('Please enter your exact Minecraft name first.', 'amber');
+        return;
       }
-      document.getElementById('inputRoomCode').value = code;
+      const code = generateCode();
+      await enterVoiceRoom(code, nameInput, true);
     };
 
-    // ---------------------------------------------------------------------------
-    // 5. WEB AUDIO API SPATIAL ENGINE & ATTENUATION CALCULATOR
-    // ---------------------------------------------------------------------------
+    window.joinFromInviteUrl = async function () {
+      const nameInput = document.getElementById('inputMcName').value.trim();
+      if (!nameInput) {
+        showToast('Please enter your exact Minecraft name first.', 'amber');
+        return;
+      }
+      await enterVoiceRoom(state.roomCode, nameInput, false);
+    };
+
+    window.joinWithCodeInput = async function () {
+      const nameInput = document.getElementById('inputMcName').value.trim();
+      const codeInput = document.getElementById('inputJoinCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!nameInput) {
+        showToast('Please enter your exact Minecraft name first.', 'amber');
+        return;
+      }
+      if (!codeInput) {
+        showToast('Please enter your friend’s 6-letter Room Code.', 'amber');
+        return;
+      }
+      await enterVoiceRoom(codeInput, nameInput, false);
+    };
+
+    async function enterVoiceRoom(roomCode, mcName, wantsHost) {
+      state.roomCode = roomCode;
+      state.mcName = mcName;
+      state.isHost = wantsHost;
+      state.inRoom = true;
+
+      ensureAudioContext();
+
+      // Request Microphone
+      try {
+        state.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+        const src = state.audioCtx.createMediaStreamSource(state.localStream);
+        const analyser = state.audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        state.localAnalyser = { analyser, data: new Uint8Array(analyser.frequencyBinCount) };
+      } catch (e) {
+        showToast('Microphone not found — joined in listen mode.', 'amber');
+      }
+
+      // Switch from Screen 1 to Screen 2
+      document.getElementById('screenLogin').classList.add('hidden');
+      document.getElementById('screenRoom').classList.remove('hidden');
+      document.getElementById('roomHeaderBadge').classList.remove('hidden');
+      document.getElementById('roomHeaderBadge').classList.add('flex');
+
+      document.getElementById('myDisplayName').textContent = state.mcName;
+      document.getElementById('myAvatarText').textContent = state.mcName.slice(0, 2).toUpperCase();
+
+      // Register self in players map
+      state.players.set(state.myUid, {
+        uid: state.myUid,
+        mcName: state.mcName,
+        peerId: '',
+        x: 0,
+        y: 64,
+        z: 0,
+        isSpectator: false,
+        isBot: false
+      });
+
+      applyRolePermissionsUI();
+      initPeerJS();
+      await startFirestoreSync();
+
+      if (state.isHost) {
+        startAutomaticMinecraftConnectors();
+      }
+
+      renderPlayersUI();
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. STRICT HOST vs FRIEND UI PERMISSIONS
+    // -------------------------------------------------------------------------
+    function applyRolePermissionsUI() {
+      const hostPanel = document.getElementById('hostOnlyPanel');
+      const friendBanner = document.getElementById('friendReadOnlyBanner');
+      const rolePill = document.getElementById('rolePill');
+
+      if (state.isHost) {
+        hostPanel.classList.remove('hidden');
+        friendBanner.classList.add('hidden');
+        rolePill.textContent = `Host • #${state.roomCode}`;
+        rolePill.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        document.getElementById('hostRoomCodeDisplay').textContent = state.roomCode;
+
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('usercontent.goog');
+        const cmdTarget = isLocal ? '127.0.0.1:8080' : window.location.host;
+        document.getElementById('hostConnectCmd').textContent = `/connect ${cmdTarget}`;
+      } else {
+        // Strictly hide all Host Controls, sliders, and /connect command from Friends
+        hostPanel.classList.add('hidden');
+        friendBanner.classList.remove('hidden');
+        rolePill.textContent = `Connected • #${state.roomCode}`;
+        rolePill.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30';
+      }
+
+      syncSettingsToUI();
+    }
+
+    function syncSettingsToUI() {
+      const maxR = state.settings.maxRange || 35;
+      const specIso = state.settings.spectatorIsolation !== false;
+
+      // Update Host controls
+      document.getElementById('hostRangeSlider').value = maxR;
+      document.getElementById('hostRangeLabel').textContent = maxR;
+      document.getElementById('hostSpecToggle').checked = specIso;
+
+      // Update Friend read-only banner
+      document.getElementById('friendRangeValue').textContent = maxR;
+      document.getElementById('friendSpecBadge').textContent = specIso
+        ? 'Spectator VC Enabled'
+        : 'Spectator VC Disabled';
+    }
+
+    window.onHostSettingsChange = async function () {
+      if (!state.isHost) return; // Enforce host-only permission
+      const maxR = parseInt(document.getElementById('hostRangeSlider').value, 10) || 35;
+      const specIso = document.getElementById('hostSpecToggle').checked;
+
+      state.settings.maxRange = maxR;
+      state.settings.spectatorIsolation = specIso;
+      syncSettingsToUI();
+      renderPlayersUI();
+
+      if (cloudReady && db && currentUser) {
+        try {
+          const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
+          await setDoc(roomRef, {
+            roomCode: state.roomCode,
+            hostId: state.myUid,
+            settings: state.settings,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (e) {}
+      }
+    };
+
+    window.toggleHostTestPreview = function () {
+      if (!state.isHost) return;
+      state.hostTestPreview = document.getElementById('hostTestModeToggle').checked;
+
+      if (state.hostTestPreview) {
+        // Add a simulated test friend if the host is alone so they can test the distance fade slider immediately
+        if (state.players.size <= 1) {
+          const botId = 'test_bot_1';
+          const bot = {
+            uid: botId,
+            mcName: 'Steve_TestBot',
+            peerId: '',
+            x: 12,
+            y: 64,
+            z: 0,
+            isSpectator: false,
+            isBot: true,
+            testDist: 12
+          };
+          state.players.set(botId, bot);
+          ensureRemoteAudioPipeline(bot);
+        }
+      } else {
+        cleanupRemoteAudio('test_bot_1');
+        state.players.delete('test_bot_1');
+      }
+      renderPlayersUI();
+    };
+
+    window.onHostTestDistanceSlide = function (targetUid, distVal) {
+      if (!state.isHost) return;
+      const p = state.players.get(targetUid);
+      if (!p) return;
+      const d = parseFloat(distVal) || 0;
+      p.testDist = d;
+      p.x = state.x + d;
+      p.y = state.y;
+      p.z = state.z;
+      renderPlayersUI();
+    };
+
+    // -------------------------------------------------------------------------
+    // 4. FIRESTORE REAL-TIME ROOM & PLAYER COORDINATE SYNC
+    // -------------------------------------------------------------------------
+    async function startFirestoreSync() {
+      if (!cloudReady || !db || !currentUser) return;
+
+      const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
+      const peersCol = collection(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers');
+
+      // Check existing room document to verify Host ownership
+      try {
+        const snap = await getDoc(roomRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.hostId && data.hostId !== state.myUid && !state.isHost) {
+            state.isHost = false;
+          }
+          if (data.settings) {
+            state.settings = { ...state.settings, ...data.settings };
+          }
+        } else if (state.isHost) {
+          await setDoc(roomRef, {
+            roomCode: state.roomCode,
+            hostId: state.myUid,
+            settings: state.settings,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
+      } catch (e) {}
+
+      applyRolePermissionsUI();
+
+      // Subscribe to Room Settings & Host-pushed Minecraft Positions
+      state.unsubRoom = onSnapshot(
+        roomRef,
+        (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data();
+
+          // Enforce hostId authority
+          if (data.hostId && data.hostId !== state.myUid && state.isHost) {
+            // Keep host if we created it
+          }
+
+          if (data.settings && !state.isHost) {
+            state.settings = { ...state.settings, ...data.settings };
+            syncSettingsToUI();
+          }
+
+          // Apply Minecraft player coordinates broadcast by the Host
+          if (Array.isArray(data.mcPositions)) {
+            applyMinecraftPositionsList(data.mcPositions);
+          }
+        },
+        () => {}
+      );
+
+      // Subscribe to Connected Players in Room
+      state.unsubPlayers = onSnapshot(
+        peersCol,
+        (snap) => {
+          snap.docChanges().forEach((change) => {
+            const d = change.doc.data();
+            if (!d || d.roomCode !== state.roomCode) return;
+
+            if (change.type === 'removed') {
+              if (d.uid !== state.myUid) {
+                cleanupRemoteAudio(d.uid);
+                state.players.delete(d.uid);
+                renderPlayersUI();
+              }
+              return;
+            }
+
+            if (d.uid === state.myUid) return;
+
+            const existing = state.players.get(d.uid) || { uid: d.uid };
+            const updated = {
+              ...existing,
+              mcName: d.mcName || 'Player',
+              peerId: d.peerId || '',
+              x: typeof d.x === 'number' ? d.x : (existing.x || 0),
+              y: typeof d.y === 'number' ? d.y : (existing.y || 64),
+              z: typeof d.z === 'number' ? d.z : (existing.z || 0),
+              isSpectator: Boolean(d.isSpectator),
+              isBot: false
+            };
+
+            state.players.set(d.uid, updated);
+            ensureRemoteAudioPipeline(updated);
+
+            if (updated.peerId && state.peerId && state.myUid < updated.uid) {
+              callRemotePeer(updated);
+            }
+          });
+          renderPlayersUI();
+        },
+        () => {}
+      );
+
+      await publishMyPlayerDoc();
+    }
+
+    async function publishMyPlayerDoc() {
+      if (!cloudReady || !db || !currentUser || !state.inRoom) return;
+      try {
+        const myDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers', `${state.roomCode}_${state.myUid}`);
+        await setDoc(myDoc, {
+          uid: state.myUid,
+          roomCode: state.roomCode,
+          mcName: state.mcName,
+          peerId: state.peerId,
+          x: state.x,
+          y: state.y,
+          z: state.z,
+          isSpectator: state.isSpectator,
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (e) {}
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. PEERJS WEBRTC VOICE MESH & WEB AUDIO API COSINE FADE
+    // -------------------------------------------------------------------------
     function ensureAudioContext() {
       if (!state.audioCtx) {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1150,1356 +905,638 @@ setInterval(() => {
       return state.audioCtx;
     }
 
-    /**
-     * Core Proximity + Spectator VC Isolation Gain Calculator
-     * Returns gain between 0.0 and 1.0 for any target player relative to local listener
-     */
-    function calculateEffectiveGain(targetPlayer) {
-      if (state.deafened) return 0;
-      if (targetPlayer.mutedByMe) return 0;
+    function initPeerJS() {
+      try {
+        const suffix = Math.random().toString(36).substring(2, 8);
+        const peerId = `mcprox_${state.roomCode}_${suffix}`;
+        const peer = new Peer(peerId);
+        state.peer = peer;
 
-      const myMode = state.myMode; // 'alive' | 'spectator'
-      const targetMode = targetPlayer.mode || 'alive';
-      const userVol = (targetPlayer.userVolume ?? 100) / 100;
+        peer.on('open', (id) => {
+          state.peerId = id;
+          const me = state.players.get(state.myUid);
+          if (me) me.peerId = id;
+          publishMyPlayerDoc();
+        });
 
-      // RULE A: I am ALIVE
-      if (myMode === 'alive') {
-        // Alive players CANNOT hear Spectators at all!
-        if (targetMode === 'spectator') {
-          return 0;
-        }
-        // Both Alive -> calculate 3D distance attenuation
-        return computeDistanceFade(targetPlayer) * userVol;
-      }
-
-      // RULE B: I am a SPECTATOR
-      if (myMode === 'spectator') {
-        // Spectators always hear other Spectators globally at 100% volume!
-        if (targetMode === 'spectator') {
-          return 1.0 * userVol;
-        }
-        // Target is Alive -> check room's Spectator Rule
-        const specRule = state.settings.specRule;
-        if (specRule === 'muted') return 0;
-        if (specRule === 'global') return 1.0 * userVol;
-        return computeDistanceFade(targetPlayer) * userVol;
-      }
-
-      return 0;
+        peer.on('call', (call) => {
+          call.answer(state.localStream || createSilentStream());
+          bindCallEvents(call);
+        });
+      } catch (e) {}
     }
 
-    function computeDistanceFade(targetPlayer) {
-      const dx = (targetPlayer.x || 0) - state.myPos.x;
-      const dy = (targetPlayer.y || 64) - state.myPos.y;
-      const dz = (targetPlayer.z || 0) - state.myPos.z;
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-      const minR = Math.min(state.settings.minRange, state.settings.maxRange - 1);
-      const maxR = state.settings.maxRange;
-
-      if (dist <= minR) return 1.0;
-      if (dist >= maxR) return 0.0;
-
-      // Normalized 0..1 between minR and maxR
-      const t = (dist - minR) / (maxR - minR);
-      const curve = state.settings.falloffCurve;
-
-      if (curve === 'linear') {
-        return Math.max(0, 1 - t);
-      } else if (curve === 'exponential') {
-        return Math.max(0, Math.pow(1 - t, 2.4));
-      } else {
-        // Smoothstep S-curve
-        const s = t * t * (3 - 2 * t);
-        return Math.max(0, 1 - s);
-      }
-    }
-
-    function updateAudioListenerTransform() {
-      if (!state.audioCtx) return;
-      const listener = state.audioCtx.listener;
-      const yawRad = (state.myPos.yaw || 0) * (Math.PI / 180);
-      const forwardX = Math.sin(yawRad);
-      const forwardZ = -Math.cos(yawRad);
-
-      if (listener.positionX) {
-        listener.positionX.value = state.myPos.x;
-        listener.positionY.value = state.myPos.y;
-        listener.positionZ.value = state.myPos.z;
-        listener.forwardX.value = forwardX;
-        listener.forwardY.value = 0;
-        listener.forwardZ.value = forwardZ;
-        listener.upX.value = 0;
-        listener.upY.value = 1;
-        listener.upZ.value = 0;
-      } else if (listener.setPosition) {
-        listener.setPosition(state.myPos.x, state.myPos.y, state.myPos.z);
-        listener.setOrientation(forwardX, 0, forwardZ, 0, 1, 0);
-      }
-    }
-
-    /**
-     * Creates or updates the Web Audio API pipeline for a remote peer or simulated bot
-     */
-    function ensurePeerAudioPipeline(player, mediaStream = null) {
+    function createSilentStream() {
       const ctx = ensureAudioContext();
-      let nodeBundle = state.audioNodes.get(player.id);
+      return ctx.createMediaStreamDestination().stream;
+    }
 
-      if (!nodeBundle) {
+    function callRemotePeer(player) {
+      if (!state.peer || !state.peerId || !player.peerId) return;
+      if (state.activeCalls.has(player.peerId)) return;
+      try {
+        const call = state.peer.call(player.peerId, state.localStream || createSilentStream());
+        if (call) bindCallEvents(call, player);
+      } catch (e) {}
+    }
+
+    function bindCallEvents(call, knownPlayer = null) {
+      state.activeCalls.set(call.peer, call);
+      call.on('stream', (remoteStream) => {
+        let target = knownPlayer;
+        if (!target) {
+          for (const p of state.players.values()) {
+            if (p.peerId === call.peer) {
+              target = p;
+              break;
+            }
+          }
+        }
+        if (target) ensureRemoteAudioPipeline(target, remoteStream);
+      });
+      call.on('close', () => state.activeCalls.delete(call.peer));
+    }
+
+    function ensureRemoteAudioPipeline(player, mediaStream = null) {
+      const ctx = ensureAudioContext();
+      let bundle = state.audioNodes.get(player.uid);
+
+      if (!bundle) {
         const panner = ctx.createPanner();
         panner.panningModel = 'HRTF';
         panner.distanceModel = 'linear';
         panner.refDistance = 1;
         panner.maxDistance = 10000;
-        panner.rolloffFactor = 0; // We handle exact custom distance curve via GainNode
+        panner.rolloffFactor = 0;
 
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = 0;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
 
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         const freqData = new Uint8Array(analyser.frequencyBinCount);
 
-        panner.connect(gainNode);
-        gainNode.connect(analyser);
+        panner.connect(gain);
+        gain.connect(analyser);
         analyser.connect(ctx.destination);
 
-        nodeBundle = {
-          source: null,
-          panner,
-          gain: gainNode,
-          analyser,
-          freqData,
-          synthOsc: null,
-          synthLfo: null,
-          synthGain: null
-        };
-        state.audioNodes.set(player.id, nodeBundle);
+        bundle = { source: null, panner, gain, analyser, freqData, botOsc: null };
+        state.audioNodes.set(player.uid, bundle);
       }
 
-      // Attach real WebRTC MediaStream if provided
-      if (mediaStream && !nodeBundle.source) {
+      if (mediaStream && !bundle.source) {
         try {
-          // Create hidden <audio> element muted so mobile browsers pump the WebRTC stream
-          let audioEl = document.getElementById(`audio_${player.id}`);
+          let audioEl = document.getElementById(`rem_audio_${player.uid}`);
           if (!audioEl) {
             audioEl = document.createElement('audio');
-            audioEl.id = `audio_${player.id}`;
+            audioEl.id = `rem_audio_${player.uid}`;
             audioEl.autoplay = true;
             audioEl.playsInline = true;
-            audioEl.muted = true; // Muted on HTML element because Web Audio API outputs it spatially
+            audioEl.muted = true;
             document.getElementById('remoteAudioContainer').appendChild(audioEl);
           }
           audioEl.srcObject = mediaStream;
           audioEl.play().catch(() => {});
 
           const source = ctx.createMediaStreamSource(mediaStream);
-          source.connect(nodeBundle.panner);
-          nodeBundle.source = source;
+          source.connect(bundle.panner);
+          bundle.source = source;
         } catch (e) {}
       }
 
-      // Attach or remove synthetic test voice for bots
-      if (player.isBot) {
-        if (state.botSynthEnabled && !nodeBundle.synthOsc) {
-          const osc = ctx.createOscillator();
-          const lfo = ctx.createOscillator();
-          const lfoGain = ctx.createGain();
-          const synthGain = ctx.createGain();
-
-          // Give each bot a distinct harmonic voice pitch
-          const baseFreq = player.mode === 'spectator' ? 320 : 190 + (player.gamertag.charCodeAt(0) % 70);
-          osc.type = 'triangle';
-          osc.frequency.value = baseFreq;
-
-          // Syllabic cadence modulation so it sounds like rhythmic speech bursts
-          lfo.type = 'sine';
-          lfo.frequency.value = 2.8;
-          lfoGain.gain.value = 0.12;
-
-          synthGain.gain.value = 0.14;
-          lfo.connect(synthGain.gain);
-          osc.connect(synthGain);
-          synthGain.connect(nodeBundle.panner);
-
-          osc.start();
-          lfo.start();
-          nodeBundle.synthOsc = osc;
-          nodeBundle.synthLfo = lfo;
-          nodeBundle.synthGain = synthGain;
-        } else if (!state.botSynthEnabled && nodeBundle.synthOsc) {
-          try {
-            nodeBundle.synthOsc.stop();
-            nodeBundle.synthLfo.stop();
-            nodeBundle.synthOsc.disconnect();
-          } catch (e) {}
-          nodeBundle.synthOsc = null;
-          nodeBundle.synthLfo = null;
-        }
+      // Attach gentle test tone for Host Preview bot
+      if (player.isBot && !bundle.botOsc) {
+        const osc = ctx.createOscillator();
+        const lfo = ctx.createOscillator();
+        const botGain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = 210;
+        lfo.frequency.value = 3;
+        botGain.gain.value = 0.08;
+        lfo.connect(botGain.gain);
+        osc.connect(botGain);
+        botGain.connect(bundle.panner);
+        osc.start();
+        lfo.start();
+        bundle.botOsc = osc;
       }
 
-      return nodeBundle;
+      return bundle;
     }
 
-    function updateAllSpatialAudioNodes() {
-      if (!state.audioCtx) return;
-      updateAudioListenerTransform();
-
-      const now = state.audioCtx.currentTime;
-      for (const [id, player] of state.players.entries()) {
-        if (id === state.myId) continue;
-
-        const bundle = ensurePeerAudioPipeline(player);
-        const effectiveGain = calculateEffectiveGain(player);
-        player.currentGain = effectiveGain;
-
-        // If 3D Spatial HRTF is enabled and not in global Spectator-to-Spectator mode, position in 3D
-        const isGlobalSpec = state.myMode === 'spectator' && (player.mode === 'spectator' || state.settings.specRule === 'global');
-        if (state.settings.spatial3D && !isGlobalSpec) {
-          if (bundle.panner.positionX) {
-            bundle.panner.positionX.setTargetAtTime(player.x || 0, now, 0.05);
-            bundle.panner.positionY.setTargetAtTime(player.y || 64, now, 0.05);
-            bundle.panner.positionZ.setTargetAtTime(player.z || 0, now, 0.05);
-          } else {
-            bundle.panner.setPosition(player.x || 0, player.y || 64, player.z || 0);
-          }
-        } else {
-          // Place directly at listener position so audio is centered stereo
-          if (bundle.panner.positionX) {
-            bundle.panner.positionX.setTargetAtTime(state.myPos.x, now, 0.05);
-            bundle.panner.positionY.setTargetAtTime(state.myPos.y, now, 0.05);
-            bundle.panner.positionZ.setTargetAtTime(state.myPos.z, now, 0.05);
-          } else {
-            bundle.panner.setPosition(state.myPos.x, state.myPos.y, state.myPos.z);
-          }
-        }
-
-        bundle.gain.gain.setTargetAtTime(effectiveGain, now, 0.05);
-
-        // Check audio activity for speaking indicator
-        bundle.analyser.getByteFrequencyData(bundle.freqData);
-        let sum = 0;
-        for (let i = 0; i < 32; i++) sum += bundle.freqData[i];
-        const avg = sum / 32;
-        player.speaking = (avg > 8 && effectiveGain > 0.01) || (player.isBot && state.botSynthEnabled && effectiveGain > 0.01);
-      }
-    }
-
-    // ---------------------------------------------------------------------------
-    // 6. JOIN ROOM, PEERJS WEBRTC SETUP & CLOUD ROOM SYNC
-    // ---------------------------------------------------------------------------
-    window.handleJoinSubmit = async function (e) {
-      e.preventDefault();
-      const gamertag = document.getElementById('inputGamertag').value.trim();
-      const roomCode = document.getElementById('inputRoomCode').value.trim().toUpperCase();
-      const roleInput = document.querySelector('input[name="joinRole"]:checked');
-      const micDeviceId = document.getElementById('lobbyMicSelect').value;
-
-      if (!gamertag || !roomCode) return;
-
-      state.myGamertag = gamertag;
-      state.roomCode = roomCode;
-      state.role = roleInput ? roleInput.value : 'host';
-      state.inRoom = true;
-
-      ensureAudioContext();
-
-      // Acquire Microphone Stream (with graceful fallback if mic permission denied)
-      try {
-        const constraints = {
-          audio: micDeviceId && micDeviceId !== 'default'
-            ? { deviceId: { exact: micDeviceId }, echoCancellation: true, noiseSuppression: true }
-            : { echoCancellation: true, noiseSuppression: true }
-        };
-        state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        setupLocalMicAnalyser(state.localStream);
-        showToast(`Microphone connected as ${gamertag}`, 'emerald');
-      } catch (err) {
-        showToast('Joined in Listen/Test Mode (No microphone detected)', 'amber');
-      }
-
-      // Switch Views
-      document.getElementById('lobbyView').classList.add('hidden');
-      document.getElementById('roomView').classList.remove('hidden');
-      document.getElementById('displayRoomCode').textContent = state.roomCode;
-
-      // Add myself to players map
-      state.players.set(state.myId, {
-        id: state.myId,
-        gamertag: state.myGamertag,
-        peerId: '',
-        x: state.myPos.x,
-        y: state.myPos.y,
-        z: state.myPos.z,
-        yaw: state.myPos.yaw,
-        mode: state.myMode,
-        isBot: false,
-        speaking: false
-      });
-
-      // Initialize PeerJS for WebRTC Voice Mesh
-      initPeerJS();
-
-      // Start Cloud Room Sync (Firestore)
-      await startFirestoreRoomSync();
-
-      // Spawn 2 helpful interactive sandbox bots initially if host so the radar is immediately alive
-      if (state.role === 'host') {
-        window.spawnDemoBot('alive', 'Alex_Builder', 10, -8);
-        window.spawnDemoBot('spectator', 'Ghost_Creeper', -14, 12);
-      }
-
-      drawAttenuationCurve();
-      renderPlayerLists();
-      resizeRadarCanvas();
-    };
-
-    function setupLocalMicAnalyser(stream) {
-      const ctx = ensureAudioContext();
-      const src = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      src.connect(analyser);
-      state.localAnalyser = {
-        analyser,
-        data: new Uint8Array(analyser.frequencyBinCount)
-      };
-    }
-
-    function initPeerJS() {
-      try {
-        const cleanRoom = state.roomCode.replace(/[^A-Z0-9]/g, '');
-        const randomShort = Math.random().toString(36).substring(2, 7);
-        const peerId = `mcprox_${cleanRoom}_${randomShort}`;
-
-        const peer = new Peer(peerId);
-        state.peerInstance = peer;
-
-        peer.on('open', (id) => {
-          state.myPeerId = id;
-          const me = state.players.get(state.myId);
-          if (me) me.peerId = id;
-          publishMyPeerState();
-        });
-
-        peer.on('call', (call) => {
-          // Answer incoming WebRTC voice call with our microphone stream (or silent stream)
-          call.answer(state.localStream || createSilentStream());
-          handleActiveCall(call);
-        });
-
-        peer.on('error', () => {});
-      } catch (e) {}
-    }
-
-    function createSilentStream() {
-      const ctx = ensureAudioContext();
-      const dst = ctx.createMediaStreamDestination();
-      return dst.stream;
-    }
-
-    function connectToRemotePeer(player) {
-      if (!state.peerInstance || !state.myPeerId || !player.peerId) return;
-      if (player.peerId === state.myPeerId) return;
-      if (state.activeCalls.has(player.peerId)) return;
-
-      try {
-        const streamToSend = state.localStream || createSilentStream();
-        const call = state.peerInstance.call(player.peerId, streamToSend, {
-          metadata: { playerId: state.myId, gamertag: state.myGamertag }
-        });
-        if (call) handleActiveCall(call, player);
-      } catch (e) {}
-    }
-
-    function handleActiveCall(call, knownPlayer = null) {
-      state.activeCalls.set(call.peer, call);
-      call.on('stream', (remoteStream) => {
-        // Find matching player by peerId
-        let targetPlayer = knownPlayer;
-        if (!targetPlayer) {
-          for (const p of state.players.values()) {
-            if (p.peerId === call.peer) {
-              targetPlayer = p;
-              break;
-            }
-          }
-        }
-        if (targetPlayer) {
-          ensurePeerAudioPipeline(targetPlayer, remoteStream);
-        }
-      });
-      call.on('close', () => {
-        state.activeCalls.delete(call.peer);
-      });
-    }
-
-    // ---------------------------------------------------------------------------
-    // 7. FIRESTORE CLOUD ROOM SYNC (STRICTLY FOLLOWING RULES 1, 2, 3)
-    // ---------------------------------------------------------------------------
-    async function startFirestoreRoomSync() {
-      if (!cloudAvailable || !db || !currentUser) return;
-
-      // RULE 1: Strict public data paths
-      const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
-      const peersColRef = collection(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers');
-
-      // If host, initialize or update room settings document
-      if (state.role === 'host') {
+    function cleanupRemoteAudio(uid) {
+      const b = state.audioNodes.get(uid);
+      if (b) {
         try {
-          await setDoc(roomDocRef, {
-            roomCode: state.roomCode,
-            hostId: state.myId,
-            settings: state.settings,
-            botPositions: getSerializedBots(),
-            updatedAt: Date.now()
-          }, { merge: true });
+          if (b.botOsc) b.botOsc.stop();
+          b.gain.disconnect();
         } catch (e) {}
+        state.audioNodes.delete(uid);
       }
-
-      // Listen to Room Settings & Host-relayed Bedrock coordinates
-      state.unsubRoomDoc = onSnapshot(
-        roomDocRef,
-        (snap) => {
-          if (!snap.exists()) return;
-          const data = snap.data();
-          if (data.settings && state.role !== 'host') {
-            state.settings = { ...state.settings, ...data.settings };
-            syncSettingsToUI();
-          }
-          // If host relayed Bedrock positions for players, apply them
-          if (Array.isArray(data.bedrockPlayers)) {
-            applyBedrockPositionsArray(data.bedrockPlayers, false);
-          }
-        },
-        (err) => {}
-      );
-
-      // RULE 2: Simple collection query, filter in JS memory by roomCode
-      state.unsubPeersCol = onSnapshot(
-        peersColRef,
-        (snap) => {
-          snap.docChanges().forEach((change) => {
-            const d = change.doc.data();
-            if (!d || d.roomCode !== state.roomCode) return;
-
-            if (change.type === 'removed') {
-              if (d.id !== state.myId) {
-                cleanupPlayerAudio(d.id);
-                state.players.delete(d.id);
-                renderPlayerLists();
-              }
-              return;
-            }
-
-            if (d.id === state.myId) return;
-
-            const existing = state.players.get(d.id) || {
-              id: d.id,
-              userVolume: 100,
-              mutedByMe: false
-            };
-
-            const updated = {
-              ...existing,
-              gamertag: d.gamertag || 'Player',
-              peerId: d.peerId || '',
-              x: typeof d.x === 'number' ? d.x : 0,
-              y: typeof d.y === 'number' ? d.y : 64,
-              z: typeof d.z === 'number' ? d.z : 0,
-              yaw: typeof d.yaw === 'number' ? d.yaw : 0,
-              mode: d.mode || 'alive',
-              isBot: false,
-              lastSeen: d.updatedAt || Date.now()
-            };
-
-            state.players.set(d.id, updated);
-            ensurePeerAudioPipeline(updated);
-
-            // Initiate WebRTC audio call if we haven't connected yet
-            if (updated.peerId && state.myPeerId && state.myId < updated.id) {
-              connectToRemotePeer(updated);
-            }
-          });
-          renderPlayerLists();
-        },
-        (err) => {}
-      );
-
-      await publishMyPeerState();
+      const el = document.getElementById(`rem_audio_${uid}`);
+      if (el) el.remove();
     }
-
-    async function publishMyPeerState() {
-      if (!cloudAvailable || !db || !currentUser || !state.inRoom) return;
-      try {
-        const peerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers', `${state.roomCode}_${state.myId}`);
-        await setDoc(peerDocRef, {
-          id: state.myId,
-          roomCode: state.roomCode,
-          gamertag: state.myGamertag,
-          peerId: state.myPeerId,
-          x: Math.round(state.myPos.x * 10) / 10,
-          y: Math.round(state.myPos.y * 10) / 10,
-          z: Math.round(state.myPos.z * 10) / 10,
-          yaw: Math.round(state.myPos.yaw),
-          mode: state.myMode,
-          updatedAt: Date.now()
-        }, { merge: true });
-      } catch (e) {}
-    }
-
-    async function publishRoomSettings() {
-      if (!cloudAvailable || !db || !currentUser || !state.inRoom) return;
-      try {
-        const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
-        await setDoc(roomDocRef, {
-          roomCode: state.roomCode,
-          settings: state.settings,
-          updatedAt: Date.now()
-        }, { merge: true });
-      } catch (e) {}
-    }
-
-    function getSerializedBots() {
-      const bots = [];
-      for (const p of state.players.values()) {
-        if (p.isBot) {
-          bots.push({ id: p.id, gamertag: p.gamertag, x: p.x, y: p.y, z: p.z, mode: p.mode });
-        }
-      }
-      return bots;
-    }
-
-    // ---------------------------------------------------------------------------
-    // 8. DIRECT BEDROCK WEBSOCKET BRIDGE CONNECTOR
-    // ---------------------------------------------------------------------------
-    window.toggleBridgeWebSocket = function () {
-      if (state.bridgeSocket && state.bridgeConnected) {
-        state.bridgeSocket.close();
-        return;
-      }
-
-      const url = document.getElementById('inputBridgeWsUrl').value.trim();
-      if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
-        showToast('Please enter a valid ws:// or wss:// URL', 'rose');
-        return;
-      }
-
-      const btn = document.getElementById('btnConnectBridge');
-      const badge = document.getElementById('bridgeStateBadge');
-      btn.textContent = 'Connecting...';
-
-      try {
-        const ws = new WebSocket(url);
-        state.bridgeSocket = ws;
-
-        ws.onopen = () => {
-          state.bridgeConnected = true;
-          btn.textContent = 'Disconnect';
-          btn.className = 'px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 text-obsidian-950 font-bold text-xs shrink-0 transition';
-          badge.textContent = 'Bridge Connected';
-          badge.className = 'text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
-          document.getElementById('wsBridgeIndicator').className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping';
-
-          ws.send(JSON.stringify({ type: 'MCPROX_BROWSER_HELLO', roomCode: state.roomCode }));
-          showToast('Connected to Bedrock WebSocket Bridge!', 'emerald');
-        };
-
-        ws.onmessage = async (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'BEDROCK_POSITIONS' && Array.isArray(data.players)) {
-              state.packetCount++;
-              document.getElementById('lastPacketTime').textContent = `Packets: ${state.packetCount}`;
-
-              if (data.rangeOverride && data.rangeOverride !== state.settings.maxRange) {
-                state.settings.maxRange = data.rangeOverride;
-                syncSettingsToUI();
-              }
-
-              applyBedrockPositionsArray(data.players, true);
-            }
-          } catch (e) {}
-        };
-
-        ws.onerror = () => {
-          showToast('Could not reach local bridge.js on ' + url, 'amber');
-        };
-
-        ws.onclose = () => {
-          state.bridgeConnected = false;
-          btn.textContent = 'Connect WS';
-          btn.className = 'px-3.5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-obsidian-950 font-bold text-xs shrink-0 transition';
-          badge.textContent = 'Sandbox Active';
-          badge.className = 'text-[11px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20';
-          document.getElementById('wsBridgeIndicator').className = 'inline-block w-2 h-2 rounded-full bg-amber-400';
-        };
-      } catch (err) {
-        showToast('WebSocket connection error', 'rose');
-      }
-    };
 
     /**
-     * Matches incoming Minecraft Bedrock coordinates by Gamertag (case-insensitive)
-     * and updates both local state and relays to Firestore for phone clients!
+     * Calculates 3D Euclidean Distance & Smooth Cosine Fade:
+     * - Spectator Isolation ON:
+     *   - Alive hears Spectator = 0%
+     *   - Spectator hears Spectator = 100% globally
+     * - Alive to Alive:
+     *   - dist <= 4 blocks: 100% (1.0)
+     *   - 4 < dist < maxRange: smooth cosine fade 0.5 * (1 + cos(PI * (dist - 4) / (maxRange - 4)))
+     *   - dist >= maxRange: 0% (0.0)
      */
-    async function applyBedrockPositionsArray(bedrockPlayers, relayToCloud = false) {
-      for (const bp of bedrockPlayers) {
-        if (!bp.gamertag) continue;
-        const lowerName = bp.gamertag.toLowerCase();
+    function computePlayerVolume(target) {
+      if (state.deafened) return 0;
 
-        // Check if this matches the local player
-        if (lowerName === state.myGamertag.toLowerCase()) {
-          state.myPos.x = bp.x;
-          state.myPos.y = bp.y;
-          state.myPos.z = bp.z;
-          state.myPos.yaw = bp.yaw || 0;
-          if (bp.mode && bp.mode !== state.myMode) {
-            state.myMode = bp.mode;
-            updateMyModeButtonUI();
-          }
-          const me = state.players.get(state.myId);
-          if (me) {
-            me.x = bp.x;
-            me.y = bp.y;
-            me.z = bp.z;
-            me.yaw = bp.yaw || 0;
-            me.mode = state.myMode;
-          }
-          document.getElementById('myCoordsDisplay').textContent = `X: ${Math.round(bp.x)}, Y: ${Math.round(bp.y)}, Z: ${Math.round(bp.z)}`;
-          document.getElementById('myYawDisplay').textContent = `${Math.round(bp.yaw || 0)}°`;
-        }
-
-        // Update matching remote peer or create a tracked Bedrock player marker
-        let matchedPeer = null;
-        for (const p of state.players.values()) {
-          if (p.gamertag.toLowerCase() === lowerName) {
-            matchedPeer = p;
-            break;
-          }
-        }
-
-        if (matchedPeer && matchedPeer.id !== state.myId) {
-          matchedPeer.x = bp.x;
-          matchedPeer.y = bp.y;
-          matchedPeer.z = bp.z;
-          matchedPeer.yaw = bp.yaw || 0;
-          if (bp.mode) matchedPeer.mode = bp.mode;
-        }
+      const specIso = state.settings.spectatorIsolation !== false;
+      if (specIso) {
+        if (!state.isSpectator && target.isSpectator) return 0;
+        if (state.isSpectator && target.isSpectator) return 1.0;
       }
 
-      if (relayToCloud && cloudAvailable && db && currentUser) {
+      const dx = (target.x || 0) - state.x;
+      const dy = (target.y || 64) - state.y;
+      const dz = (target.z || 0) - state.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      const minFull = 4;
+      const maxR = Math.max(10, state.settings.maxRange || 35);
+
+      if (dist <= minFull) return 1.0;
+      if (dist >= maxR) return 0.0;
+
+      const ratio = (dist - minFull) / (maxR - minFull);
+      return 0.5 * (1 + Math.cos(Math.PI * ratio));
+    }
+
+    function audioLoop() {
+      if (state.inRoom && state.audioCtx) {
+        const listener = state.audioCtx.listener;
+        if (listener.positionX) {
+          listener.positionX.value = state.x;
+          listener.positionY.value = state.y;
+          listener.positionZ.value = state.z;
+        }
+
+        const now = state.audioCtx.currentTime;
+        for (const [uid, p] of state.players.entries()) {
+          if (uid === state.myUid) continue;
+          const bundle = ensureRemoteAudioPipeline(p);
+          const vol = computePlayerVolume(p);
+          p.currentVolume = vol;
+
+          if (bundle.panner.positionX) {
+            bundle.panner.positionX.setTargetAtTime(p.x || 0, now, 0.05);
+            bundle.panner.positionY.setTargetAtTime(p.y || 64, now, 0.05);
+            bundle.panner.positionZ.setTargetAtTime(p.z || 0, now, 0.05);
+          }
+          bundle.gain.gain.setTargetAtTime(vol, now, 0.05);
+
+          bundle.analyser.getByteFrequencyData(bundle.freqData);
+          let sum = 0;
+          for (let i = 0; i < 24; i++) sum += bundle.freqData[i];
+          p.speaking = (sum / 24 > 8 && vol > 0.01) || (p.isBot && vol > 0.01);
+
+          const bar = document.getElementById(`volbar_${uid}`);
+          const pctLabel = document.getElementById(`volpct_${uid}`);
+          if (bar) bar.style.width = `${Math.round(vol * 100)}%`;
+          if (pctLabel) {
+            const dx = (p.x || 0) - state.x;
+            const dy = (p.y || 64) - state.y;
+            const dz = (p.z || 0) - state.z;
+            const dist = Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz));
+            pctLabel.textContent = (!state.isSpectator && p.isSpectator && state.settings.spectatorIsolation)
+              ? 'Spectator (0%)'
+              : `${dist}m • ${Math.round(vol * 100)}%`;
+          }
+        }
+
+        // Update local mic bar
+        if (state.localAnalyser && !state.micMuted) {
+          const { analyser, data } = state.localAnalyser;
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for (let i = 0; i < 32; i++) sum += data[i];
+          const pct = Math.min(100, Math.round((sum / (32 * 160)) * 100));
+          document.getElementById('myMicBar').style.width = `${pct}%`;
+        } else {
+          document.getElementById('myMicBar').style.width = '0%';
+        }
+      }
+      requestAnimationFrame(audioLoop);
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. AUTOMATIC MINECRAFT WEBSOCKET HANDLING (BROWSER + LOCAL RELAY)
+    // -------------------------------------------------------------------------
+    function startAutomaticMinecraftConnectors() {
+      if (!state.isHost) return;
+
+      const endpoints = [
+        `ws://127.0.0.1:8080`,
+        `wss://socketsbay.com/wss/v2/1/mcprox_${state.roomCode}/`
+      ];
+
+      // Also connect to same-origin WebSocket if deployed on Render/Cloud
+      if (window.location.protocol.startsWith('http') && !window.location.hostname.includes('usercontent.goog')) {
+        const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        endpoints.unshift(`${wsProto}//${window.location.host}`);
+      }
+
+      function tryConnectEndpoint(url) {
+        if (!state.inRoom || !state.isHost) return;
+        const existing = state.mcSockets.get(url);
+        if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+          return;
+        }
+
         try {
-          const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
-          await setDoc(roomDocRef, {
-            bedrockPlayers,
-            updatedAt: Date.now()
-          }, { merge: true });
+          const ws = new WebSocket(url);
+          state.mcSockets.set(url, ws);
+
+          ws.onopen = () => {
+            try {
+              ws.send(JSON.stringify({ role: 'web_client', type: 'MCPROX_BROWSER_HELLO', roomCode: state.roomCode }));
+            } catch (e) {}
+          };
+
+          ws.onmessage = (evt) => {
+            handleIncomingMinecraftPacket(evt.data);
+          };
+
+          ws.onclose = () => {
+            state.mcSockets.delete(url);
+          };
         } catch (e) {}
       }
 
-      renderPlayerLists();
+      endpoints.forEach(tryConnectEndpoint);
+      setInterval(() => {
+        if (state.inRoom && state.isHost) {
+          endpoints.forEach(tryConnectEndpoint);
+        }
+      }, 4000);
+
+      // Automatically send querytarget @a and testfor @a[m=spectator] every 200ms
+      setInterval(() => {
+        if (!state.inRoom || !state.isHost) return;
+        const queryPosPacket = JSON.stringify({
+          header: {
+            version: 1,
+            requestId: 'poll-pos',
+            messagePurpose: 'commandRequest',
+            messageType: 'commandRequest'
+          },
+          body: {
+            version: 1,
+            commandLine: 'querytarget @a',
+            origin: { type: 'player' }
+          }
+        });
+
+        const querySpecPacket = JSON.stringify({
+          header: {
+            version: 1,
+            requestId: 'poll-spec',
+            messagePurpose: 'commandRequest',
+            messageType: 'commandRequest'
+          },
+          body: {
+            version: 1,
+            commandLine: 'testfor @a[m=spectator]',
+            origin: { type: 'player' }
+          }
+        });
+
+        for (const ws of state.mcSockets.values()) {
+          if (ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(queryPosPacket);
+              ws.send(querySpecPacket);
+            } catch (e) {}
+          }
+        }
+      }, 200);
     }
 
-    // ---------------------------------------------------------------------------
-    // 9. UI CONTROLS: VOICE RANGE, SPECTATOR VC, MUTE, BOTS
-    // ---------------------------------------------------------------------------
-    window.updateVoiceSettingsFromUI = function () {
-      let maxR = parseInt(document.getElementById('sliderMaxRange').value, 10);
-      let minR = parseInt(document.getElementById('sliderMinRange').value, 10);
+    async function handleIncomingMinecraftPacket(rawText) {
+      try {
+        const msg = JSON.parse(rawText);
 
-      if (minR >= maxR) {
-        minR = Math.max(1, maxR - 2);
-        document.getElementById('sliderMinRange').value = minR;
-      }
+        if (msg.type === 'bridge_status' && msg.mcConnected) {
+          setMinecraftConnectedBadge(true);
+          return;
+        }
 
-      state.settings.maxRange = maxR;
-      state.settings.minRange = minR;
-      state.settings.falloffCurve = document.getElementById('selectFalloffCurve').value;
-      state.settings.specRule = document.getElementById('selectSpecRule').value;
-      state.settings.spatial3D = document.getElementById('checkSpatial3D').checked;
+        // Unwrap if wrapped by server.js / local relay
+        const packet = msg.type === 'mc_raw' && msg.payload ? msg.payload : msg;
 
-      syncSettingsToUI();
-      publishRoomSettings();
-    };
+        // Handle direct BEDROCK_POSITIONS array from bridge
+        if (packet.type === 'BEDROCK_POSITIONS' && Array.isArray(packet.players)) {
+          setMinecraftConnectedBadge(true);
+          const formatted = packet.players.map(p => ({
+            mcName: p.gamertag || p.mcName,
+            x: p.x || 0,
+            y: p.y || 64,
+            z: p.z || 0,
+            isSpectator: p.mode === 'spectator' || Boolean(p.isSpectator)
+          }));
+          applyMinecraftPositionsList(formatted);
+          broadcastMcPositionsToRoom(formatted);
+          return;
+        }
 
-    function syncSettingsToUI() {
-      const { maxRange, minRange, falloffCurve, specRule, spatial3D } = state.settings;
-      document.getElementById('sliderMaxRange').value = maxRange;
-      document.getElementById('sliderMinRange').value = minRange;
-      document.getElementById('valMaxRange').textContent = maxRange;
-      document.getElementById('valMinRange').textContent = minRange;
-      document.getElementById('descMinRange').textContent = `${minRange}m`;
-      document.getElementById('descMaxRange').textContent = `${maxRange}m`;
-      document.getElementById('channelRangeLabel').textContent = `${minRange}m–${maxRange}m`;
-      document.getElementById('selectFalloffCurve').value = falloffCurve;
-      document.getElementById('selectSpecRule').value = specRule;
-      document.getElementById('checkSpatial3D').checked = spatial3D;
+        // Handle raw Minecraft Bedrock commandResponse (querytarget @a & testfor @a[m=spectator])
+        if (packet.header?.messagePurpose === 'commandResponse' || packet.body) {
+          const body = packet.body || {};
 
-      const curveNames = {
-        smoothstep: 'Smooth S-Curve',
-        linear: 'Linear Fade',
-        exponential: 'Inverse Power'
-      };
-      document.getElementById('curveFormulaLabel').textContent = curveNames[falloffCurve] || 'Smoothstep';
+          // 1. Check testfor @a[m=spectator] victim array (supports names with spaces like "Hudenrilie Game")
+          if (packet.header?.requestId === 'poll-spec' || Array.isArray(body.victim)) {
+            setMinecraftConnectedBadge(true);
+            const specs = Array.isArray(body.victim) ? body.victim : [];
+            state.knownSpectatorNames = new Set(specs.map(n => String(n).trim().toLowerCase()));
+          }
 
-      drawAttenuationCurve();
-      renderPlayerLists();
+          // 2. Check querytarget @a details JSON string
+          const rawDetails = body.details || body.statusMessage;
+          if (rawDetails) {
+            const parsed = typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails;
+            if (Array.isArray(parsed)) {
+              setMinecraftConnectedBadge(true);
+              const positions = parsed.map(ent => {
+                const rawName = String(ent.name || ent.uniqueId || '').trim();
+                const isSpec = state.knownSpectatorNames.has(rawName.toLowerCase());
+                return {
+                  mcName: rawName,
+                  x: Math.round((ent.position?.x || 0) * 10) / 10,
+                  y: Math.round((ent.position?.y || 64) * 10) / 10,
+                  z: Math.round((ent.position?.z || 0) * 10) / 10,
+                  isSpectator: isSpec
+                };
+              });
+              applyMinecraftPositionsList(positions);
+              broadcastMcPositionsToRoom(positions);
+            }
+          }
+        }
+      } catch (e) {}
     }
 
-    window.toggleMySpectatorMode = function () {
-      state.myMode = state.myMode === 'alive' ? 'spectator' : 'alive';
-      const me = state.players.get(state.myId);
-      if (me) me.mode = state.myMode;
+    function setMinecraftConnectedBadge(connected) {
+      state.mcConnected = connected;
+      const pill = document.getElementById('mcStatusPill');
+      const dot = document.getElementById('mcStatusDot');
+      const txt = document.getElementById('mcStatusText');
+      if (!pill) return;
 
-      updateMyModeButtonUI();
-      publishMyPeerState();
-      renderPlayerLists();
-
-      if (state.myMode === 'spectator') {
-        showToast('Switched to Spectator VC! You can now chat globally with Spectators.', 'purple');
-      } else {
-        showToast('Switched to Alive Proximity VC! Spectators are now muted.', 'cyan');
-      }
-    };
-
-    function updateMyModeButtonUI() {
-      const btn = document.getElementById('btnToggleSpectator');
-      const label = document.getElementById('labelMyState');
-      if (state.myMode === 'spectator') {
-        btn.className = 'px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border transition shadow-md bg-purple-500/20 border-purple-500/50 text-purple-200 hover:bg-purple-500/30';
-        label.textContent = 'Mode: SPECTATOR (Ghost VC)';
-      } else {
-        btn.className = 'px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border transition shadow-md bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25';
-        label.textContent = 'Mode: ALIVE (Proximity VC)';
+      if (connected) {
+        pill.className = 'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+        txt.textContent = 'Minecraft Connected';
       }
     }
 
-    window.toggleMicMute = function () {
+    function applyMinecraftPositionsList(mcPositions) {
+      for (const pos of mcPositions) {
+        if (!pos.mcName) continue;
+        const targetLower = pos.mcName.trim().toLowerCase();
+
+        // Match local player (supports spaces like "Hudenrilie Game")
+        if (targetLower === state.mcName.trim().toLowerCase()) {
+          state.x = pos.x;
+          state.y = pos.y;
+          state.z = pos.z;
+          state.isSpectator = Boolean(pos.isSpectator);
+          updateMySpectatorBadgeUI();
+        }
+
+        // Match any room player by case-insensitive Minecraft name
+        for (const p of state.players.values()) {
+          if (p.mcName.trim().toLowerCase() === targetLower) {
+            p.x = pos.x;
+            p.y = pos.y;
+            p.z = pos.z;
+            p.isSpectator = Boolean(pos.isSpectator);
+          }
+        }
+      }
+      renderPlayersUI();
+    }
+
+    async function broadcastMcPositionsToRoom(positions) {
+      if (!state.isHost || !cloudReady || !db || !currentUser) return;
+      try {
+        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_rooms', `room_${state.roomCode}`);
+        await setDoc(roomRef, {
+          mcPositions: positions,
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (e) {}
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. PERSONAL AUDIO CONTROLS & PLAYER LIST RENDERING
+    // -------------------------------------------------------------------------
+    window.toggleMuteMic = function () {
       state.micMuted = !state.micMuted;
       if (state.localStream) {
-        state.localStream.getAudioTracks().forEach(t => {
-          t.enabled = !state.micMuted;
-        });
+        state.localStream.getAudioTracks().forEach(t => { t.enabled = !state.micMuted; });
       }
-      const btn = document.getElementById('btnToggleMic');
-      const label = document.getElementById('labelMic');
+      const btn = document.getElementById('btnMuteMic');
+      const lbl = document.getElementById('labelMuteMic');
       if (state.micMuted) {
-        btn.className = 'px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 bg-rose-500/20 border border-rose-500/40 text-rose-300 transition';
-        label.textContent = 'Mic Muted';
+        btn.className = 'flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-rose-500/20 border border-rose-500/40 text-rose-300 transition';
+        lbl.textContent = 'Unmute Mic';
       } else {
-        btn.className = 'px-3.5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 transition';
-        label.textContent = 'Mic On';
+        btn.className = 'flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 transition';
+        lbl.textContent = 'Mute Mic';
       }
     };
 
-    window.toggleDeafen = function () {
+    window.toggleDeafenAudio = function () {
       state.deafened = !state.deafened;
-      const btn = document.getElementById('btnToggleDeafen');
-      const label = document.getElementById('labelDeafen');
+      const btn = document.getElementById('btnDeafen');
+      const lbl = document.getElementById('labelDeafen');
       if (state.deafened) {
-        btn.className = 'px-3 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 bg-rose-500/20 border border-rose-500/40 text-rose-300 transition';
-        label.textContent = 'Deafened';
+        btn.className = 'flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-rose-500/20 border border-rose-500/40 text-rose-300 transition';
+        lbl.textContent = 'Undeafen';
       } else {
-        btn.className = 'px-3 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 bg-obsidian-800 border border-slate-700 text-slate-300 transition';
-        label.textContent = 'Audio On';
+        btn.className = 'flex-1 sm:flex-initial px-4 py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 bg-obsidian-800 border border-slate-700 text-slate-200 transition';
+        lbl.textContent = 'Deafen';
       }
-      renderPlayerLists();
     };
 
-    window.spawnDemoBot = function (mode = 'alive', customName = null, customX = null, customZ = null) {
-      ensureAudioContext();
-      const id = 'bot_' + crypto.randomUUID().slice(0, 6);
-      const botNamesAlive = ['DiamondSteve', 'RedstonePro', 'NetherExplorer', 'CreeperHunter', 'Enderman99'];
-      const botNamesSpec = ['FallenHero', 'SpectatorGhost', 'Eliminated_01', 'PhantomWatcher'];
-      const pool = mode === 'spectator' ? botNamesSpec : botNamesAlive;
-      const gamertag = customName || pool[Math.floor(Math.random() * pool.length)] + '_' + Math.floor(Math.random() * 90 + 10);
-
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 8 + Math.random() * 18;
-      const x = customX !== null ? customX : Math.round((state.myPos.x + Math.cos(angle) * dist) * 10) / 10;
-      const z = customZ !== null ? customZ : Math.round((state.myPos.z + Math.sin(angle) * dist) * 10) / 10;
-
-      const bot = {
-        id,
-        gamertag,
-        peerId: '',
-        x,
-        y: 64,
-        z,
-        yaw: Math.floor(Math.random() * 360),
-        mode,
-        isBot: true,
-        speaking: false,
-        userVolume: 100,
-        mutedByMe: false
-      };
-
-      state.players.set(id, bot);
-      ensurePeerAudioPipeline(bot);
-      renderPlayerLists();
+    window.toggleManualSpectator = function () {
+      state.isSpectator = !state.isSpectator;
+      const me = state.players.get(state.myUid);
+      if (me) me.isSpectator = state.isSpectator;
+      updateMySpectatorBadgeUI();
+      publishMyPlayerDoc();
+      renderPlayersUI();
     };
 
-    window.toggleBotSynthAudio = function () {
-      ensureAudioContext();
-      state.botSynthEnabled = !state.botSynthEnabled;
-      const btn = document.getElementById('btnToggleBotVoice');
-      const label = document.getElementById('labelBotVoice');
-
-      for (const p of state.players.values()) {
-        if (p.isBot) ensurePeerAudioPipeline(p);
-      }
-
-      if (state.botSynthEnabled) {
-        btn.className = 'px-3 py-1.5 rounded-xl bg-emerald-500 text-obsidian-950 text-xs font-extrabold flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 transition';
-        label.textContent = 'Test Voice Audio: ON';
-        showToast('Playing spatial test voice from bots! Drag them on the radar to hear fade & 3D stereo.', 'emerald');
+    function updateMySpectatorBadgeUI() {
+      const badge = document.getElementById('myStatusBadge');
+      const lbl = document.getElementById('labelSpectatorToggle');
+      if (state.isSpectator) {
+        badge.textContent = 'Spectator VC';
+        badge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30';
+        lbl.textContent = 'Switch to Alive VC';
       } else {
-        btn.className = 'px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition';
-        label.textContent = 'Test Voice Audio: OFF';
+        badge.textContent = 'Alive VC';
+        badge.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30';
+        lbl.textContent = 'Switch to Spectator VC';
       }
-      renderPlayerLists();
-    };
-
-    window.toggleBotMode = function (playerId) {
-      const p = state.players.get(playerId);
-      if (!p) return;
-      p.mode = p.mode === 'alive' ? 'spectator' : 'alive';
-      if (p.isBot && state.botSynthEnabled) {
-        cleanupPlayerAudio(p.id);
-        ensurePeerAudioPipeline(p);
-      }
-      renderPlayerLists();
-    };
-
-    window.removeBotPlayer = function (playerId) {
-      cleanupPlayerAudio(playerId);
-      state.players.delete(playerId);
-      renderPlayerLists();
-    };
-
-    window.toggleMuteUser = function (playerId) {
-      const p = state.players.get(playerId);
-      if (!p) return;
-      p.mutedByMe = !p.mutedByMe;
-      renderPlayerLists();
-    };
-
-    window.setUserVolume = function (playerId, val) {
-      const p = state.players.get(playerId);
-      if (!p) return;
-      p.userVolume = parseInt(val, 10);
-    };
-
-    function cleanupPlayerAudio(playerId) {
-      const bundle = state.audioNodes.get(playerId);
-      if (bundle) {
-        try {
-          if (bundle.synthOsc) bundle.synthOsc.stop();
-          if (bundle.synthLfo) bundle.synthLfo.stop();
-          bundle.gain.disconnect();
-        } catch (e) {}
-        state.audioNodes.delete(playerId);
-      }
-      const audioEl = document.getElementById(`audio_${playerId}`);
-      if (audioEl) audioEl.remove();
     }
 
-    // ---------------------------------------------------------------------------
-    // 10. RENDER PLAYER VOICE CHANNEL CARDS (ALIVE vs SPECTATOR VC)
-    // ---------------------------------------------------------------------------
-    function renderPlayerLists() {
-      const aliveContainer = document.getElementById('alivePlayersList');
-      const specContainer = document.getElementById('specPlayersList');
-      if (!aliveContainer || !specContainer) return;
+    function renderPlayersUI() {
+      const aliveEl = document.getElementById('alivePlayersContainer');
+      const specEl = document.getElementById('specPlayersContainer');
+      if (!aliveEl || !specEl) return;
 
-      const aliveList = [];
-      const specList = [];
+      const alive = [];
+      const specs = [];
 
       for (const p of state.players.values()) {
-        if (p.mode === 'spectator') {
-          specList.push(p);
-        } else {
-          aliveList.push(p);
-        }
+        if (p.isSpectator) specs.push(p);
+        else alive.push(p);
       }
 
-      document.getElementById('countAlivePlayers').textContent = aliveList.length;
-      document.getElementById('countSpecPlayers').textContent = specList.length;
+      document.getElementById('aliveCountBadge').textContent = alive.length;
+      document.getElementById('specCountBadge').textContent = specs.length;
 
-      aliveContainer.innerHTML = aliveList.map(p => buildPlayerCardHTML(p)).join('');
-      specContainer.innerHTML = specList.length > 0
-        ? specList.map(p => buildPlayerCardHTML(p)).join('')
-        : `<div class="text-center py-4 text-[11px] text-slate-500 border border-dashed border-slate-800 rounded-xl">No players in Spectator VC</div>`;
-
-      lucide.createIcons();
+      aliveEl.innerHTML = alive.map(renderPlayerRow).join('');
+      specEl.innerHTML = specs.length
+        ? specs.map(renderPlayerRow).join('')
+        : `<div class="text-xs text-slate-500 py-4 text-center border border-dashed border-slate-800 rounded-2xl">No players in Spectator VC</div>`;
     }
 
-    function buildPlayerCardHTML(p) {
-      const isMe = p.id === state.myId;
-      const dx = (p.x || 0) - state.myPos.x;
-      const dy = (p.y || 64) - state.myPos.y;
-      const dz = (p.z || 0) - state.myPos.z;
-      const dist = isMe ? 0 : Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz) * 10) / 10;
-
-      const effectiveGain = isMe ? 1 : calculateEffectiveGain(p);
-      const volPct = Math.round(effectiveGain * 100);
-      const isSpec = p.mode === 'spectator';
-
-      const speakingClass = p.speaking
-        ? (isSpec ? 'speaking-spec' : 'speaking-alive')
-        : 'border-slate-800';
-
-      // Status subtitle
-      let statusBadge = '';
-      if (isMe) {
-        statusBadge = `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">YOU</span>`;
-      } else if (state.myMode === 'alive' && isSpec) {
-        statusBadge = `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">Isolated (0%)</span>`;
-      } else if (state.myMode === 'spectator' && isSpec) {
-        statusBadge = `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-200">Global Spec 100%</span>`;
-      } else {
-        const badgeColor = volPct > 50 ? 'text-emerald-300 bg-emerald-500/15' : (volPct > 0 ? 'text-amber-300 bg-amber-500/15' : 'text-slate-500 bg-slate-800/80');
-        statusBadge = `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${badgeColor}">${dist}m &bull; ${volPct}%</span>`;
-      }
+    function renderPlayerRow(p) {
+      const isMe = p.uid === state.myUid;
+      const vol = isMe ? 1 : computePlayerVolume(p);
+      const pct = Math.round(vol * 100);
+      const dx = (p.x || 0) - state.x;
+      const dy = (p.y || 64) - state.y;
+      const dz = (p.z || 0) - state.z;
+      const dist = isMe ? 0 : Math.round(Math.sqrt(dx * dx + dy * dy + dz * dz));
 
       return `
-        <div id="card_${p.id}" class="p-3 rounded-xl bg-obsidian-950 border ${speakingClass} transition space-y-2">
+        <div class="p-3.5 rounded-2xl bg-obsidian-950 border border-slate-800 space-y-2">
           <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 min-w-0">
-              <div class="w-7 h-7 rounded-lg ${isSpec ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'} border flex items-center justify-center font-bold text-xs shrink-0">
-                ${p.gamertag.slice(0, 2).toUpperCase()}
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-8 h-8 rounded-xl ${p.isSpectator ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/15 text-emerald-300'} font-bold text-xs flex items-center justify-center shrink-0">
+                ${escapeHtml(p.mcName.slice(0, 2).toUpperCase())}
               </div>
-              <div class="truncate">
-                <div class="text-xs font-bold text-white truncate">${escapeHTML(p.gamertag)}</div>
-                <div class="text-[10px] font-mono text-slate-400">X:${Math.round(p.x)} Z:${Math.round(p.z)}</div>
-              </div>
+              <span class="font-bold text-sm text-white truncate">${escapeHtml(p.mcName)} ${isMe ? '(You)' : ''}</span>
             </div>
-            ${statusBadge}
+            <span id="volpct_${p.uid}" class="text-xs font-mono text-emerald-300">
+              ${isMe ? 'Connected' : `${dist}m • ${pct}%`}
+            </span>
           </div>
 
           ${!isMe ? `
-            <!-- Volume Fade Progress Bar + Quick Actions -->
-            <div class="space-y-1.5 pt-1 border-t border-slate-800/70">
-              <div class="w-full h-1.5 rounded-full bg-obsidian-900 overflow-hidden">
-                <div id="gainbar_${p.id}" class="h-full ${isSpec ? 'bg-purple-400' : 'bg-emerald-400'} transition-all duration-100" style="width: ${Math.min(100, volPct)}%"></div>
-              </div>
-              <div class="flex items-center justify-between gap-2">
-                <button onclick="window.toggleMuteUser('${p.id}')" class="text-[11px] px-2 py-0.5 rounded ${p.mutedByMe ? 'bg-rose-500/20 text-rose-300' : 'bg-obsidian-800 text-slate-300'} hover:bg-slate-800 transition">
-                  ${p.mutedByMe ? 'Unmute' : 'Mute'}
-                </button>
-                ${p.isBot ? `
-                  <div class="flex items-center gap-1">
-                    <button onclick="window.toggleBotMode('${p.id}')" class="text-[10px] px-2 py-0.5 rounded bg-obsidian-800 hover:bg-slate-800 text-slate-300 transition" title="Switch Bot Alive/Spectator">
-                      ${isSpec ? 'Set Alive' : 'Set Spec'}
-                    </button>
-                    <button onclick="window.removeBotPlayer('${p.id}')" class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 transition" title="Remove Bot">
-                      &times;
-                    </button>
-                  </div>
-                ` : ''}
-              </div>
+            <div class="w-full h-2 rounded-full bg-obsidian-900 overflow-hidden">
+              <div id="volbar_${p.uid}" class="h-full ${p.isSpectator ? 'bg-purple-400' : 'bg-emerald-400'} transition-all duration-100" style="width: ${pct}%"></div>
             </div>
+            ${state.isHost && state.hostTestPreview ? `
+              <div class="pt-1 flex items-center gap-2 text-[11px] text-slate-400">
+                <span>Test Distance:</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value="${dist}"
+                  oninput="window.onHostTestDistanceSlide('${p.uid}', this.value)"
+                  class="w-full"
+                />
+              </div>
+            ` : ''}
           ` : ''}
         </div>
       `;
     }
 
-    function escapeHTML(str) {
-      return String(str).replace(/[&<>"']/g, s => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      }[s]));
-    }
-
-    // ---------------------------------------------------------------------------
-    // 11. INTERACTIVE 2D PROXIMITY RADAR CANVAS + ATTENUATION CURVE GRAPH
-    // ---------------------------------------------------------------------------
-    const radarCanvas = document.getElementById('radarCanvas');
-    const radarCtx = radarCanvas.getContext('2d');
-    let draggingPlayerId = null;
-
-    function resizeRadarCanvas() {
-      if (!radarCanvas) return;
-      const rect = radarCanvas.parentElement.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      radarCanvas.width = rect.width * dpr;
-      radarCanvas.height = rect.height * dpr;
-      radarCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    window.addEventListener('resize', resizeRadarCanvas);
-
-    // Convert world (X, Z) relative to listener into radar canvas pixel coordinates
-    function getRadarScale(width, height) {
-      const maxR = state.settings.maxRange;
-      const viewRadiusBlocks = Math.max(maxR * 1.35, 25);
-      return (Math.min(width, height) / 2) / viewRadiusBlocks;
-    }
-
-    function worldToRadar(wx, wz, width, height) {
-      const scale = getRadarScale(width, height);
-      const cx = width / 2;
-      const cy = height / 2;
-      return {
-        px: cx + (wx - state.myPos.x) * scale,
-        py: cy + (wz - state.myPos.z) * scale
-      };
-    }
-
-    function radarToWorld(px, py, width, height) {
-      const scale = getRadarScale(width, height);
-      const cx = width / 2;
-      const cy = height / 2;
-      return {
-        wx: Math.round((state.myPos.x + (px - cx) / scale) * 10) / 10,
-        wz: Math.round((state.myPos.z + (py - cy) / scale) * 10) / 10
-      };
-    }
-
-    // Pointer / Touch Dragging on Radar Canvas
-    function handleRadarPointerDown(clientX, clientY) {
-      const rect = radarCanvas.getBoundingClientRect();
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
-
-      // Find closest player token within 22px
-      let closestId = null;
-      let minDist = 24;
-
-      for (const [id, p] of state.players.entries()) {
-        const pos = worldToRadar(p.x, p.z, rect.width, rect.height);
-        const d = Math.hypot(pos.px - px, pos.py - py);
-        if (d < minDist) {
-          minDist = d;
-          closestId = id;
-        }
-      }
-
-      if (closestId) {
-        draggingPlayerId = closestId;
-        ensureAudioContext();
-      }
-    }
-
-    function handleRadarPointerMove(clientX, clientY) {
-      if (!draggingPlayerId) return;
-      const rect = radarCanvas.getBoundingClientRect();
-      const px = Math.max(12, Math.min(rect.width - 12, clientX - rect.left));
-      const py = Math.max(12, Math.min(rect.height - 12, clientY - rect.top));
-
-      const world = radarToWorld(px, py, rect.width, rect.height);
-
-      if (draggingPlayerId === state.myId) {
-        state.myPos.x = world.wx;
-        state.myPos.z = world.wz;
-        const me = state.players.get(state.myId);
-        if (me) {
-          me.x = world.wx;
-          me.z = world.wz;
-        }
-        document.getElementById('myCoordsDisplay').textContent = `X: ${Math.round(world.wx)}, Y: ${state.myPos.y}, Z: ${Math.round(world.wz)}`;
-        publishMyPeerState();
-      } else {
-        const p = state.players.get(draggingPlayerId);
-        if (p) {
-          p.x = world.wx;
-          p.z = world.wz;
-        }
-      }
-
-      renderPlayerLists();
-    }
-
-    radarCanvas.addEventListener('mousedown', (e) => handleRadarPointerDown(e.clientX, e.clientY));
-    window.addEventListener('mousemove', (e) => handleRadarPointerMove(e.clientX, e.clientY));
-    window.addEventListener('mouseup', () => { draggingPlayerId = null; });
-
-    radarCanvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length > 0) {
-        handleRadarPointerDown(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    }, { passive: true });
-    radarCanvas.addEventListener('touchmove', (e) => {
-      if (draggingPlayerId && e.touches.length > 0) {
-        e.preventDefault();
-        handleRadarPointerMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
-    }, { passive: false });
-    window.addEventListener('touchend', () => { draggingPlayerId = null; });
-
-    // Keyboard WASD movement for local player
-    window.addEventListener('keydown', (e) => {
-      if (!state.inRoom) return;
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
-
-      const step = 1.5;
-      let moved = false;
-      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') { state.myPos.z -= step; moved = true; }
-      if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') { state.myPos.z += step; moved = true; }
-      if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') { state.myPos.x -= step; moved = true; }
-      if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') { state.myPos.x += step; moved = true; }
-
-      if (moved) {
-        const me = state.players.get(state.myId);
-        if (me) {
-          me.x = state.myPos.x;
-          me.z = state.myPos.z;
-        }
-        document.getElementById('myCoordsDisplay').textContent = `X: ${Math.round(state.myPos.x)}, Y: ${state.myPos.y}, Z: ${Math.round(state.myPos.z)}`;
-        publishMyPeerState();
-        renderPlayerLists();
-      }
-    });
-
-    window.rotatePlayer = function (deltaDeg) {
-      state.myPos.yaw = (state.myPos.yaw + deltaDeg + 360) % 360;
-      const me = state.players.get(state.myId);
-      if (me) me.yaw = state.myPos.yaw;
-      document.getElementById('myYawDisplay').textContent = `${Math.round(state.myPos.yaw)}°`;
-      publishMyPeerState();
+    // -------------------------------------------------------------------------
+    // 8. 1-CLICK BAT DOWNLOADER, CLIPBOARD & HELPERS
+    // -------------------------------------------------------------------------
+    window.downloadOneClickBat = function () {
+      const batContent = `@echo off
+title MCProxVC - 1-Click Minecraft Connector
+echo ===================================================
+echo   MCProxVC - 1-Click Minecraft Bedrock Connector
+echo ===================================================
+echo.
+echo [1/2] Unlocking Windows Minecraft Local Connection...
+CheckNetIsolation LoopbackExempt -a -n="Microsoft.MinecraftUWP_8wekyb3d8bbwe" >nul 2>&1
+echo [2/2] Starting Local Minecraft Bridge on 127.0.0.1:8080...
+echo.
+echo NOW IN MINECRAFT CHAT, TYPE:
+echo   /connect 127.0.0.1:8080
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$listener = New-Object System.Net.HttpListener; $listener.Prefixes.Add('http://127.0.0.1:8080/'); $listener.Start(); Write-Host 'Ready! Waiting for Minecraft /connect 127.0.0.1:8080...' -ForegroundColor Green; $clients = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList)); while ($listener.IsListening) { $ctx = $listener.GetContext(); if ($ctx.Request.IsWebSocketRequest) { $wsCtx = $ctx.AcceptWebSocketAsync($null).GetAwaiter().GetResult(); $ws = $wsCtx.WebSocket; [void]$clients.Add($ws); $ null = [System.Threading.Tasks.Task]::Run({ param($s, $list) $buf = New-Object byte[] 65536; try { while ($s.State -eq 'Open') { $res = $s.ReceiveAsync((New-Object System.ArraySegment[byte]($buf)), [System.Threading.CancellationToken]::None).GetAwaiter().GetResult(); if ($res.MessageType -eq 'Close') { break }; foreach ($c in @($list)) { if ($c -ne $s -and $c.State -eq 'Open') { $c.SendAsync((New-Object System.ArraySegment[byte]($buf, 0, $res.Count)), $res.MessageType, $res.EndOfMessage, [System.Threading.CancellationToken]::None).GetAwaiter().GetResult() } } } } catch {} finally { [void]$list.Remove($s) } }.GetNewClosure(), @($ws, $clients)) } else { $ctx.Response.StatusCode = 200; $ctx.Response.Close() } }"
+pause
+`;
+      const blob = new Blob([batContent], { type: 'application/bat' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Connect-Minecraft.bat';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Downloaded Connect-Minecraft.bat! Open it and run /connect 127.0.0.1:8080', 'emerald');
     };
 
-    function drawRadarFrame() {
-      if (!state.inRoom || !radarCanvas) return;
-      const rect = radarCanvas.parentElement.getBoundingClientRect();
-      const w = rect.width;
-      const h = rect.height;
-      if (w === 0 || h === 0) return;
+    window.copyFriendInviteLink = function () {
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', state.roomCode);
+      copyToClipboard(url.toString(), 'Friend invite link copied! Send it to your friends.');
+    };
 
-      const cx = w / 2;
-      const cy = h / 2;
-      const scale = getRadarScale(w, h);
+    window.copyMinecraftCommand = function () {
+      const cmd = document.getElementById('hostConnectCmd').textContent;
+      copyToClipboard(cmd, `Copied "${cmd}"! Paste it in Minecraft chat.`);
+    };
 
-      radarCtx.clearRect(0, 0, w, h);
+    window.openFixModal = function () {
+      const m = document.getElementById('fixMinecraftModal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    };
 
-      // Background subtle coordinate grid
-      const gridStep = 10 * scale;
-      radarCtx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
-      radarCtx.lineWidth = 1;
-      for (let x = cx % gridStep; x < w; x += gridStep) {
-        radarCtx.beginPath();
-        radarCtx.moveTo(x, 0);
-        radarCtx.lineTo(x, h);
-        radarCtx.stroke();
-      }
-      for (let y = cy % gridStep; y < h; y += gridStep) {
-        radarCtx.beginPath();
-        radarCtx.moveTo(0, y);
-        radarCtx.lineTo(w, y);
-        radarCtx.stroke();
-      }
+    window.closeFixModal = function () {
+      const m = document.getElementById('fixMinecraftModal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    };
 
-      // Draw Max Hearing Range Ring
-      const maxRadiusPx = state.settings.maxRange * scale;
-      const minRadiusPx = state.settings.minRange * scale;
+    window.leaveRoom = async function () {
+      state.inRoom = false;
+      if (state.unsubRoom) state.unsubRoom();
+      if (state.unsubPlayers) state.unsubPlayers();
 
-      const grad = radarCtx.createRadialGradient(cx, cy, minRadiusPx, cx, cy, maxRadiusPx);
-      if (state.myMode === 'spectator') {
-        grad.addColorStop(0, 'rgba(168, 85, 247, 0.14)');
-        grad.addColorStop(1, 'rgba(168, 85, 247, 0.01)');
-      } else {
-        grad.addColorStop(0, 'rgba(16, 185, 129, 0.16)');
-        grad.addColorStop(1, 'rgba(16, 185, 129, 0.01)');
+      if (cloudReady && db && currentUser) {
+        try {
+          const myDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers', `${state.roomCode}_${state.myUid}`);
+          await deleteDoc(myDoc);
+        } catch (e) {}
       }
 
-      radarCtx.fillStyle = grad;
-      radarCtx.beginPath();
-      radarCtx.arc(cx, cy, maxRadiusPx, 0, Math.PI * 2);
-      radarCtx.fill();
+      for (const uid of state.players.keys()) cleanupRemoteAudio(uid);
+      state.players.clear();
 
-      // Outer Max Range dashed border
-      radarCtx.strokeStyle = state.myMode === 'spectator' ? 'rgba(168, 85, 247, 0.45)' : 'rgba(16, 185, 129, 0.45)';
-      radarCtx.setLineDash([6, 4]);
-      radarCtx.lineWidth = 1.5;
-      radarCtx.beginPath();
-      radarCtx.arc(cx, cy, maxRadiusPx, 0, Math.PI * 2);
-      radarCtx.stroke();
-
-      // Inner Min Range (100% volume) ring
-      radarCtx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
-      radarCtx.setLineDash([3, 3]);
-      radarCtx.lineWidth = 1;
-      radarCtx.beginPath();
-      radarCtx.arc(cx, cy, minRadiusPx, 0, Math.PI * 2);
-      radarCtx.stroke();
-      radarCtx.setLineDash([]);
-
-      // Range labels on rings
-      radarCtx.fillStyle = 'rgba(148, 163, 184, 0.6)';
-      radarCtx.font = '10px "JetBrains Mono", monospace';
-      radarCtx.fillText(`${state.settings.maxRange}m max`, cx + 6, cy - maxRadiusPx + 12);
-      radarCtx.fillText(`${state.settings.minRange}m 100%`, cx + 6, cy - minRadiusPx + 12);
-
-      // Draw Listener Facing Cone (3D HRTF Orientation)
-      const yawRad = (state.myPos.yaw - 90) * (Math.PI / 180);
-      radarCtx.fillStyle = 'rgba(16, 185, 129, 0.12)';
-      radarCtx.beginPath();
-      radarCtx.moveTo(cx, cy);
-      radarCtx.arc(cx, cy, 42, yawRad - 0.45, yawRad + 0.45);
-      radarCtx.closePath();
-      radarCtx.fill();
-
-      // Draw connection lines and tokens for all players
-      for (const [id, p] of state.players.entries()) {
-        if (id === state.myId) continue;
-        const pos = worldToRadar(p.x, p.z, w, h);
-        const gain = calculateEffectiveGain(p);
-        const pct = Math.round(gain * 100);
-        const isSpec = p.mode === 'spectator';
-
-        // Draw audio link line if audible
-        if (gain > 0.01) {
-          radarCtx.strokeStyle = isSpec
-            ? `rgba(168, 85, 247, ${0.25 + gain * 0.6})`
-            : `rgba(34, 211, 238, ${0.2 + gain * 0.65})`;
-          radarCtx.lineWidth = 1 + gain * 2;
-          radarCtx.beginPath();
-          radarCtx.moveTo(cx, cy);
-          radarCtx.lineTo(pos.px, pos.py);
-          radarCtx.stroke();
-        }
-
-        // Speaking ripple
-        if (p.speaking && gain > 0.01) {
-          const pulseRadius = 15 + (Date.now() % 600) / 40;
-          radarCtx.strokeStyle = isSpec ? 'rgba(168, 85, 247, 0.65)' : 'rgba(16, 185, 129, 0.75)';
-          radarCtx.lineWidth = 2;
-          radarCtx.beginPath();
-          radarCtx.arc(pos.px, pos.py, pulseRadius, 0, Math.PI * 2);
-          radarCtx.stroke();
-        }
-
-        // Player circle
-        radarCtx.fillStyle = isSpec ? '#9333ea' : '#06b6d4';
-        radarCtx.strokeStyle = '#090b10';
-        radarCtx.lineWidth = 2.5;
-        radarCtx.beginPath();
-        radarCtx.arc(pos.px, pos.py, 11, 0, Math.PI * 2);
-        radarCtx.fill();
-        radarCtx.stroke();
-
-        // Gamertag + Volume % label
-        radarCtx.font = '600 11px Inter, sans-serif';
-        radarCtx.fillStyle = '#f8fafc';
-        radarCtx.textAlign = 'center';
-        radarCtx.fillText(p.gamertag, pos.px, pos.py - 16);
-
-        radarCtx.font = '500 10px "JetBrains Mono", monospace';
-        radarCtx.fillStyle = isSpec ? '#d8b4fe' : (pct > 0 ? '#6ee7b7' : '#64748b');
-        const labelText = (state.myMode === 'alive' && isSpec) ? 'SPEC (MUTED)' : `${pct}% vol`;
-        radarCtx.fillText(labelText, pos.px, pos.py + 23);
+      if (state.peer) {
+        try { state.peer.destroy(); } catch (e) {}
       }
 
-      // Draw Local Player at Center
-      radarCtx.fillStyle = state.myMode === 'spectator' ? '#a855f7' : '#10b981';
-      radarCtx.strokeStyle = '#ffffff';
-      radarCtx.lineWidth = 2.5;
-      radarCtx.beginPath();
-      radarCtx.arc(cx, cy, 12, 0, Math.PI * 2);
-      radarCtx.fill();
-      radarCtx.stroke();
+      window.location.href = window.location.pathname;
+    };
 
-      radarCtx.font = '700 11px Inter, sans-serif';
-      radarCtx.fillStyle = '#ffffff';
-      radarCtx.textAlign = 'center';
-      radarCtx.fillText(`${state.myGamertag} (You)`, cx, cy - 18);
-    }
-
-    // Draw the Voice Attenuation Mini-Curve in the Left Panel
-    function drawAttenuationCurve() {
-      const canvas = document.getElementById('curveCanvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-
-      ctx.clearRect(0, 0, w, h);
-
-      // Grid baseline
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, h - 6);
-      ctx.lineTo(w, h - 6);
-      ctx.stroke();
-
-      // Plot attenuation curve from distance 0 to maxRange * 1.15
-      const maxPlotDist = state.settings.maxRange * 1.15;
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-
-      for (let px = 0; px <= w; px++) {
-        const dist = (px / w) * maxPlotDist;
-        const fakeTarget = {
-          x: state.myPos.x + dist,
-          y: state.myPos.y,
-          z: state.myPos.z
-        };
-        const g = computeDistanceFade(fakeTarget);
-        const py = (h - 8) - g * (h - 14);
-        if (px === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.stroke();
-    }
-
-    // ---------------------------------------------------------------------------
-    // 12. MAIN ANIMATION & REAL-TIME AUDIO UPDATE LOOP
-    // ---------------------------------------------------------------------------
-    function startMainLoop() {
-      function tick() {
-        if (state.inRoom) {
-          updateAllSpatialAudioNodes();
-          drawRadarFrame();
-          updateLocalMicMeter();
-
-          // Live update gain bars without full DOM rebuild
-          for (const [id, p] of state.players.entries()) {
-            if (id === state.myId) continue;
-            const bar = document.getElementById(`gainbar_${id}`);
-            if (bar) {
-              const pct = Math.round((p.currentGain || 0) * 100);
-              bar.style.width = `${Math.min(100, pct)}%`;
-            }
-            const card = document.getElementById(`card_${id}`);
-            if (card) {
-              const isSpec = p.mode === 'spectator';
-              card.classList.toggle('speaking-alive', !!(p.speaking && !isSpec));
-              card.classList.toggle('speaking-spec', !!(p.speaking && isSpec));
-            }
-          }
-        }
-        requestAnimationFrame(tick);
-      }
-      requestAnimationFrame(tick);
-    }
-
-    function updateLocalMicMeter() {
-      const bar = document.getElementById('micLevelBar');
-      const label = document.getElementById('micDbLabel');
-      if (!bar || !label) return;
-
-      if (state.micMuted) {
-        bar.style.width = '0%';
-        label.textContent = 'Muted';
-        return;
-      }
-
-      if (state.localAnalyser) {
-        const { analyser, data } = state.localAnalyser;
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (let i = 0; i < 40; i++) sum += data[i];
-        const pct = Math.min(100, Math.round((sum / (40 * 180)) * 100));
-        bar.style.width = `${pct}%`;
-        label.textContent = pct > 8 ? `Speaking (${pct}%)` : 'Idle';
-      }
-    }
-
-    // ---------------------------------------------------------------------------
-    // 13. CLIPBOARD HELPERS, MODALS & TOAST NOTIFICATIONS
-    // ---------------------------------------------------------------------------
-    function copyTextToClipboard(text, successMsg) {
+    function copyToClipboard(text, msg) {
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
@@ -2508,114 +1545,30 @@ setInterval(() => {
       ta.select();
       try {
         document.execCommand('copy');
-        showToast(successMsg, 'emerald');
-      } catch (e) {
-        showToast('Copy failed', 'rose');
-      }
+        showToast(msg, 'emerald');
+      } catch (e) {}
       document.body.removeChild(ta);
     }
 
-    window.copyShareLink = function () {
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', state.roomCode);
-      copyTextToClipboard(url.toString(), `Invite link for Room ${state.roomCode} copied!`);
-    };
-
-    window.copyConnectCommand = function () {
-      const cmd = document.getElementById('displayConnectCmd').textContent;
-      copyTextToClipboard(cmd, `Copied "${cmd}"! Paste it in Minecraft Bedrock chat.`);
-    };
-
-    window.copyBridgeScript = function () {
-      copyTextToClipboard(BRIDGE_JS_SOURCE, 'Copied bridge.js Node.js script to clipboard!');
-    };
-
-    window.downloadBridgeScript = function () {
-      const blob = new Blob([BRIDGE_JS_SOURCE], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'bridge.js';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast('Downloaded bridge.js!', 'emerald');
-    };
-
-    window.openModal = function (id) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.classList.remove('hidden');
-        el.classList.add('flex');
-      }
-    };
-
-    window.closeModal = function (id) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.classList.add('hidden');
-        el.classList.remove('flex');
-      }
-    };
-
-    window.leaveRoom = async function () {
-      state.inRoom = false;
-      if (state.unsubRoomDoc) state.unsubRoomDoc();
-      if (state.unsubPeersCol) state.unsubPeersCol();
-
-      if (cloudAvailable && db && currentUser) {
-        try {
-          const peerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'mcprox_peers', `${state.roomCode}_${state.myId}`);
-          await deleteDoc(peerDocRef);
-        } catch (e) {}
-      }
-
-      for (const id of state.players.keys()) {
-        cleanupPlayerAudio(id);
-      }
-      state.players.clear();
-
-      if (state.peerInstance) {
-        try { state.peerInstance.destroy(); } catch (e) {}
-        state.peerInstance = null;
-      }
-
-      document.getElementById('roomView').classList.add('hidden');
-      document.getElementById('lobbyView').classList.remove('hidden');
-      showToast('Disconnected from room', 'amber');
-    };
-
-    function showToast(message, color = 'emerald') {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      const colors = {
-        emerald: 'bg-obsidian-900 border-emerald-500/50 text-emerald-300',
-        cyan: 'bg-obsidian-900 border-cyan-500/50 text-cyan-300',
-        purple: 'bg-obsidian-900 border-purple-500/50 text-purple-300',
-        amber: 'bg-obsidian-900 border-amber-500/50 text-amber-300',
-        rose: 'bg-obsidian-900 border-rose-500/50 text-rose-300'
-      };
-      toast.className = `px-4 py-2.5 rounded-xl border shadow-xl text-xs font-medium flex items-center gap-2 transition-all duration-300 ${colors[color] || colors.emerald}`;
-      toast.innerHTML = `<span>${escapeHTML(message)}</span>`;
-      container.appendChild(toast);
-
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(8px)';
-        setTimeout(() => toast.remove(), 300);
-      }, 3400);
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
     }
 
-    // ---------------------------------------------------------------------------
-    // 14. BOOTSTRAP ON WINDOW LOAD
-    // ---------------------------------------------------------------------------
-    window.onload = async function () {
-      lucide.createIcons();
-      initLobbyDefaults();
-      await initCloudSync();
-      startMainLoop();
-    };
+    function showToast(msg, tone = 'emerald') {
+      const container = document.getElementById('toastContainer');
+      const el = document.createElement('div');
+      const classes = tone === 'amber'
+        ? 'bg-obsidian-900 border-amber-500/50 text-amber-200'
+        : 'bg-obsidian-900 border-emerald-500/50 text-emerald-200';
+      el.className = `px-4 py-3 rounded-2xl border shadow-xl text-xs font-semibold ${classes}`;
+      el.textContent = msg;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), 3200);
+    }
+
+    window.onload = initApp;
   </script>
 </body>
 </html>
