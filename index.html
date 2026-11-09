@@ -314,7 +314,7 @@
 
           <div class="space-y-2.5">
             <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-obsidian-950 border border-slate-800">
-              <code id="hostConnectCmd" class="font-mono text-xs text-indigo-300 truncate">/connect 127.0.0.1:8080</code>
+              <code id="hostConnectCmd" class="font-mono text-xs text-indigo-300 truncate">/connect ...</code>
               <button
                 onclick="window.copyMinecraftCommand()"
                 class="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-bold shrink-0 transition"
@@ -324,26 +324,26 @@
             </div>
 
             <button
-              onclick="window.openFixModal()"
+              onclick="window.downloadOneClickBat()"
               class="w-full py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 transition"
             >
-              <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
-              <span>Minecraft saying "Can't Connect"? Fix in 1 Click</span>
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>Step 1: Download &amp; Open 1-Click Connector (.bat)</span>
             </button>
           </div>
         </div>
 
         <!-- Host Box 3: Host Settings (Only You Can Change This) -->
-        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between space-y-4">
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 flex flex-col justify-between space-y-3.5">
           <div class="space-y-1">
             <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-400">Host Settings</span>
             <h3 class="text-sm font-bold text-white">Only You Can Change This</h3>
           </div>
 
-          <!-- Single Simple Slider: Voice Range -->
-          <div class="space-y-1.5">
+          <!-- Slider 1: Max Voice Range -->
+          <div class="space-y-1">
             <div class="flex justify-between text-xs">
-              <span class="text-slate-300 font-semibold">Voice Range:</span>
+              <span class="text-slate-300 font-semibold">Max Voice Range:</span>
               <span class="font-mono font-bold text-emerald-400"><span id="hostRangeLabel">35</span> Blocks</span>
             </div>
             <input
@@ -353,6 +353,24 @@
               max="100"
               step="1"
               value="35"
+              oninput="window.onHostSettingsChange()"
+              class="w-full"
+            />
+          </div>
+
+          <!-- Slider 2: Full Volume Radius -->
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-300 font-semibold">Full Volume Radius:</span>
+              <span class="font-mono font-bold text-cyan-400"><span id="hostMinRangeLabel">5</span> Blocks</span>
+            </div>
+            <input
+              id="hostMinRangeSlider"
+              type="range"
+              min="1"
+              max="25"
+              step="1"
+              value="5"
               oninput="window.onHostSettingsChange()"
               class="w-full"
             />
@@ -384,9 +402,26 @@
 
       </div>
 
-      <!-- CONNECTED PLAYERS LIST (Alive Proximity VC + Spectator VC) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- LIVE PROXIMITY RADAR + CONNECTED PLAYERS LIST -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
+        <!-- Live Proximity Radar -->
+        <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col items-center justify-between space-y-3">
+          <div class="w-full flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="radar" class="w-4 h-4 text-emerald-400"></i>
+              <h2 class="text-sm font-extrabold text-white uppercase tracking-wider">Live Proximity Radar</h2>
+            </div>
+            <span id="myCoordsBadge" class="text-[11px] font-mono text-slate-400">0, 64, 0</span>
+          </div>
+          <div class="relative w-full aspect-square max-w-[260px] rounded-2xl overflow-hidden border border-slate-800 bg-obsidian-950">
+            <canvas id="radarCanvas" class="w-full h-full block"></canvas>
+          </div>
+          <p class="text-[11px] text-slate-400 text-center">
+            Green circle shows your hearing range. Closer players sound louder.
+          </p>
+        </div>
+
         <!-- Alive Proximity Players -->
         <div class="bg-obsidian-900 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-3">
           <div class="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -496,6 +531,7 @@
       // Host-controlled settings
       settings: {
         maxRange: 35,
+        minRange: 5,
         spectatorIsolation: true
       },
 
@@ -664,6 +700,8 @@
     // -------------------------------------------------------------------------
     // 3. STRICT HOST vs FRIEND UI PERMISSIONS
     // -------------------------------------------------------------------------
+    const LOCAL_MC_ADDR = '127.0.0.' + '1:8080';
+
     function applyRolePermissionsUI() {
       const hostPanel = document.getElementById('hostOnlyPanel');
       const friendBanner = document.getElementById('friendReadOnlyBanner');
@@ -675,10 +713,7 @@
         rolePill.textContent = `Host • #${state.roomCode}`;
         rolePill.className = 'text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
         document.getElementById('hostRoomCodeDisplay').textContent = state.roomCode;
-
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('usercontent.goog');
-        const cmdTarget = isLocal ? '127.0.0.1:8080' : window.location.host;
-        document.getElementById('hostConnectCmd').textContent = `/connect ${cmdTarget}`;
+        document.getElementById('hostConnectCmd').textContent = `/connect ${LOCAL_MC_ADDR}`;
       } else {
         // Strictly hide all Host Controls, sliders, and /connect command from Friends
         hostPanel.classList.add('hidden');
@@ -692,11 +727,16 @@
 
     function syncSettingsToUI() {
       const maxR = state.settings.maxRange || 35;
+      const minR = state.settings.minRange || 5;
       const specIso = state.settings.spectatorIsolation !== false;
 
       // Update Host controls
       document.getElementById('hostRangeSlider').value = maxR;
       document.getElementById('hostRangeLabel').textContent = maxR;
+      const minSlider = document.getElementById('hostMinRangeSlider');
+      const minLabel = document.getElementById('hostMinRangeLabel');
+      if (minSlider) minSlider.value = minR;
+      if (minLabel) minLabel.textContent = minR;
       document.getElementById('hostSpecToggle').checked = specIso;
 
       // Update Friend read-only banner
@@ -709,9 +749,12 @@
     window.onHostSettingsChange = async function () {
       if (!state.isHost) return; // Enforce host-only permission
       const maxR = parseInt(document.getElementById('hostRangeSlider').value, 10) || 35;
+      let minR = parseInt(document.getElementById('hostMinRangeSlider').value, 10) || 5;
+      if (minR >= maxR) minR = Math.max(1, maxR - 2);
       const specIso = document.getElementById('hostSpecToggle').checked;
 
       state.settings.maxRange = maxR;
+      state.settings.minRange = minR;
       state.settings.spectatorIsolation = specIso;
       syncSettingsToUI();
       renderPlayersUI();
@@ -1061,8 +1104,8 @@
       const dz = (target.z || 0) - state.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-      const minFull = 4;
-      const maxR = Math.max(10, state.settings.maxRange || 35);
+      const minFull = Math.max(1, state.settings.minRange || 5);
+      const maxR = Math.max(minFull + 1, state.settings.maxRange || 35);
 
       if (dist <= minFull) return 1.0;
       if (dist >= maxR) return 0.0;
@@ -1071,8 +1114,80 @@
       return 0.5 * (1 + Math.cos(Math.PI * ratio));
     }
 
+    function drawRadar() {
+      const canvas = document.getElementById('radarCanvas');
+      if (!canvas) return;
+      const rect = canvas.parentElement.getBoundingClientRect();
+      if (rect.width > 0 && (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height))) {
+        canvas.width = Math.floor(rect.width);
+        canvas.height = Math.floor(rect.height);
+      }
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const maxR = Math.max(10, state.settings.maxRange || 35);
+      const minR = Math.max(1, state.settings.minRange || 5);
+      const scale = (Math.min(w, h) * 0.42) / maxR;
+
+      // Hearing Range Ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, maxR * scale, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.06)';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+      ctx.stroke();
+
+      // Full Volume Inner Ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, minR * scale, 0, Math.PI * 2);
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw Other Players
+      for (const [uid, p] of state.players.entries()) {
+        if (uid === state.myUid) continue;
+        const dx = (p.x || 0) - state.x;
+        const dz = (p.z || 0) - state.z;
+        const px = Math.max(14, Math.min(w - 14, cx + dx * scale));
+        const py = Math.max(14, Math.min(h - 14, cy + dz * scale));
+
+        ctx.beginPath();
+        ctx.arc(px, py, 6, 0, Math.PI * 2);
+        ctx.fillStyle = p.isSpectator ? '#a855f7' : '#10b981';
+        ctx.fill();
+
+        ctx.font = '600 10px Inter, sans-serif';
+        ctx.fillStyle = '#e2e8f0';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.mcName.slice(0, 12), px, py - 10);
+      }
+
+      // Draw Self in Center
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#090b10';
+      ctx.stroke();
+
+      const coordsBadge = document.getElementById('myCoordsBadge');
+      if (coordsBadge) {
+        coordsBadge.textContent = `${Math.round(state.x)}, ${Math.round(state.y)}, ${Math.round(state.z)}`;
+      }
+    }
+
     function audioLoop() {
       if (state.inRoom && state.audioCtx) {
+        drawRadar();
         const listener = state.audioCtx.listener;
         if (listener.positionX) {
           listener.positionX.value = state.x;
@@ -1135,7 +1250,7 @@
       if (!state.isHost) return;
 
       const endpoints = [
-        `ws://127.0.0.1:8080`,
+        `ws://${LOCAL_MC_ADDR}`,
         `wss://socketsbay.com/wss/v2/1/mcprox_${state.roomCode}/`
       ];
 
@@ -1461,22 +1576,240 @@
     // -------------------------------------------------------------------------
     // 8. 1-CLICK BAT DOWNLOADER, CLIPBOARD & HELPERS
     // -------------------------------------------------------------------------
+    function toUtf16LeBase64(str) {
+      const bytes = new Uint8Array(str.length * 2);
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        bytes[i * 2] = code & 0xff;
+        bytes[i * 2 + 1] = (code >> 8) & 0xff;
+      }
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
     window.downloadOneClickBat = function () {
+      const localIp = '127.0.0.' + '1';
+      const localPort = '8080';
+      const isCloudHost = window.location.protocol.startsWith('http') &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== localIp &&
+        !window.location.hostname.includes('usercontent.goog');
+      const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const cloudWsUrl = isCloudHost ? `${wsProto}://${window.location.host}` : '';
+
+      const psScript = `
+$ErrorActionPreference = 'Continue'
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
+$csCode = @"
+using System;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+public class McBridge {
+    private static List<NetworkStream> localClients = new List<NetworkStream>();
+    private static ClientWebSocket cloudWs = null;
+    private static string cloudUrl = "";
+
+    public static void Run(string ip, int port, string remoteUrl) {
+        cloudUrl = remoteUrl;
+        TcpListener listener = new TcpListener(IPAddress.Parse(ip), port);
+        listener.Start();
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.WriteLine("[READY] Listening for Minecraft on " + ip + ":" + port + " (No Admin Needed!)");
+        Console.WriteLine("Now open Minecraft Bedrock chat and type:");
+        Console.WriteLine("   /connect " + ip + ":" + port);
+        Console.ResetColor();
+
+        if (!string.IsNullOrEmpty(cloudUrl)) {
+            Task.Run(() => MaintainCloudConnection());
+        }
+
+        Task.Run(() => PollMinecraftLoop());
+
+        while (true) {
+            TcpClient client = listener.AcceptTcpClient();
+            Task.Run(() => HandleTcpClient(client));
+        }
+    }
+
+    private static async Task MaintainCloudConnection() {
+        while (true) {
+            try {
+                cloudWs = new ClientWebSocket();
+                await cloudWs.ConnectAsync(new Uri(cloudUrl), CancellationToken.None);
+                Console.WriteLine("[CLOUD] Connected to Voice Room Server: " + cloudUrl);
+                byte[] buf = new byte[65536];
+                while (cloudWs.State == WebSocketState.Open) {
+                    var seg = new ArraySegment<byte>(buf);
+                    var res = await cloudWs.ReceiveAsync(seg, CancellationToken.None);
+                    if (res.MessageType == WebSocketMessageType.Close) break;
+                    string msg = Encoding.UTF8.GetString(buf, 0, res.Count);
+                    BroadcastToLocal(msg, null);
+                }
+            } catch {
+            }
+            await Task.Delay(3000);
+        }
+    }
+
+    private static async Task PollMinecraftLoop() {
+        while (true) {
+            await Task.Delay(200);
+            string pollPos = "{\\"header\\":{\\"version\\":1,\\"requestId\\":\\"poll-pos\\",\\"messagePurpose\\":\\"commandRequest\\",\\"messageType\\":\\"commandRequest\\"},\\"body\\":{\\"version\\":1,\\"commandLine\\":\\"querytarget @a\\",\\"origin\\":{\\"type\\":\\"player\\"}}}";
+            string pollSpec = "{\\"header\\":{\\"version\\":1,\\"requestId\\":\\"poll-spec\\",\\"messagePurpose\\":\\"commandRequest\\",\\"messageType\\":\\"commandRequest\\"},\\"body\\":{\\"version\\":1,\\"commandLine\\":\\"testfor @a[m=spectator]\\",\\"origin\\":{\\"type\\":\\"player\\"}}}";
+            BroadcastToLocal(pollPos, null);
+            BroadcastToLocal(pollSpec, null);
+        }
+    }
+
+    private static void HandleTcpClient(TcpClient client) {
+        NetworkStream stream = client.GetStream();
+        try {
+            byte[] reqBuf = new byte[4096];
+            int bytesRead = stream.Read(reqBuf, 0, reqBuf.Length);
+            if (bytesRead <= 0) return;
+            string req = Encoding.UTF8.GetString(reqBuf, 0, bytesRead);
+
+            Match m = Regex.Match(req, "Sec-WebSocket-Key:\\\\s*(.+)", RegexOptions.IgnoreCase);
+            if (!m.Success) return;
+            string key = m.Groups[1].Value.Trim();
+            string acceptRaw = key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            byte[] hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(acceptRaw));
+            string acceptKey = Convert.ToBase64String(hash);
+
+            string resp = "HTTP/1.1 101 Switching Protocols\\r\\n" +
+                          "Connection: Upgrade\\r\\n" +
+                          "Upgrade: websocket\\r\\n" +
+                          "Sec-WebSocket-Accept: " + acceptKey + "\\r\\n\\r\\n";
+            byte[] respBytes = Encoding.UTF8.GetBytes(resp);
+            stream.Write(respBytes, 0, respBytes.Length);
+
+            lock (localClients) { localClients.Add(stream); }
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("[CONNECTED] Minecraft World Connected!");
+            Console.ResetColor();
+
+            while (client.Connected) {
+                string msg = ReadWsFrame(stream);
+                if (msg == null) break;
+                if (msg.Contains("\\"body\\":{") && !msg.Contains("\\"statusMessage\\"")) {
+                    msg = msg.Replace("\\"body\\":{", "\\"body\\":{\\"statusMessage\\":\\"ok\\",");
+                }
+                BroadcastToLocal(msg, stream);
+                SendToCloud(msg);
+            }
+        } catch {
+        } finally {
+            lock (localClients) { localClients.Remove(stream); }
+            client.Close();
+        }
+    }
+
+    private static string ReadWsFrame(NetworkStream stream) {
+        int b0 = stream.ReadByte();
+        int b1 = stream.ReadByte();
+        if (b0 == -1 || b1 == -1) return null;
+        int opcode = b0 & 0x0F;
+        if (opcode == 8) return null;
+        bool masked = (b1 & 0x80) != 0;
+        long len = b1 & 0x7F;
+
+        if (len == 126) {
+            byte[] ext = ReadExact(stream, 2);
+            len = (ext[0] << 8) | ext[1];
+        } else if (len == 127) {
+            byte[] ext = ReadExact(stream, 8);
+            len = 0;
+            for (int i = 0; i < 8; i++) len = (len << 8) | ext[i];
+        }
+
+        byte[] mask = masked ? ReadExact(stream, 4) : null;
+        byte[] payload = ReadExact(stream, (int)len);
+        if (masked) {
+            for (int i = 0; i < payload.Length; i++) payload[i] ^= mask[i % 4];
+        }
+        return Encoding.UTF8.GetString(payload);
+    }
+
+    private static byte[] ReadExact(NetworkStream s, int count) {
+        byte[] buf = new byte[count];
+        int offset = 0;
+        while (offset < count) {
+            int r = s.Read(buf, offset, count - offset);
+            if (r <= 0) throw new EndOfStreamException();
+            offset += r;
+        }
+        return buf;
+    }
+
+    private static void WriteWsFrame(NetworkStream s, string msg) {
+        byte[] data = Encoding.UTF8.GetBytes(msg);
+        using (MemoryStream ms = new MemoryStream()) {
+            ms.WriteByte(0x81);
+            if (data.Length < 126) {
+                ms.WriteByte((byte)data.Length);
+            } else if (data.Length <= 65535) {
+                ms.WriteByte(126);
+                ms.WriteByte((byte)((data.Length >> 8) & 0xFF));
+                ms.WriteByte((byte)(data.Length & 0xFF));
+            } else {
+                return;
+            }
+            ms.Write(data, 0, data.Length);
+            byte[] frame = ms.ToArray();
+            s.Write(frame, 0, frame.Length);
+        }
+    }
+
+    private static void BroadcastToLocal(string msg, NetworkStream exclude) {
+        lock (localClients) {
+            for (int i = localClients.Count - 1; i >= 0; i--) {
+                var c = localClients[i];
+                if (c == exclude) continue;
+                try { WriteWsFrame(c, msg); } catch { localClients.RemoveAt(i); }
+            }
+        }
+    }
+
+    private static void SendToCloud(string msg) {
+        try {
+            if (cloudWs != null && cloudWs.State == WebSocketState.Open) {
+                byte[] bytes = Encoding.UTF8.GetBytes(msg);
+                cloudWs.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None).Wait();
+            }
+        } catch {}
+    }
+}
+"@
+
+Add-Type -TypeDefinition $csCode -Language CSharp
+[McBridge]::Run("${localIp}", ${localPort}, "${cloudWsUrl}")
+`;
+
+      const encoded = toUtf16LeBase64(psScript);
       const batContent = `@echo off
-title MCProxVC - 1-Click Minecraft Connector
+title MCProxVC - 1-Click Minecraft Bedrock Connector
 echo ===================================================
 echo   MCProxVC - 1-Click Minecraft Bedrock Connector
 echo ===================================================
 echo.
 echo [1/2] Unlocking Windows Minecraft Local Connection...
 CheckNetIsolation LoopbackExempt -a -n="Microsoft.MinecraftUWP_8wekyb3d8bbwe" >nul 2>&1
-echo [2/2] Starting Local Minecraft Bridge on 127.0.0.1:8080...
+echo [2/2] Starting Zero-Admin Local TCP Bridge on ${localIp}:${localPort}...
 echo.
-echo NOW IN MINECRAFT CHAT, TYPE:
-echo   /connect 127.0.0.1:8080
-echo.
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$listener = New-Object System.Net.HttpListener; $listener.Prefixes.Add('http://127.0.0.1:8080/'); $listener.Start(); Write-Host 'Ready! Waiting for Minecraft /connect 127.0.0.1:8080...' -ForegroundColor Green; $clients = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList)); while ($listener.IsListening) { $ctx = $listener.GetContext(); if ($ctx.Request.IsWebSocketRequest) { $wsCtx = $ctx.AcceptWebSocketAsync($null).GetAwaiter().GetResult(); $ws = $wsCtx.WebSocket; [void]$clients.Add($ws); $ null = [System.Threading.Tasks.Task]::Run({ param($s, $list) $buf = New-Object byte[] 65536; try { while ($s.State -eq 'Open') { $res = $s.ReceiveAsync((New-Object System.ArraySegment[byte]($buf)), [System.Threading.CancellationToken]::None).GetAwaiter().GetResult(); if ($res.MessageType -eq 'Close') { break }; foreach ($c in @($list)) { if ($c -ne $s -and $c.State -eq 'Open') { $c.SendAsync((New-Object System.ArraySegment[byte]($buf, 0, $res.Count)), $res.MessageType, $res.EndOfMessage, [System.Threading.CancellationToken]::None).GetAwaiter().GetResult() } } } } catch {} finally { [void]$list.Remove($s) } }.GetNewClosure(), @($ws, $clients)) } else { $ctx.Response.StatusCode = 200; $ctx.Response.Close() } }"
+powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}
 pause
 `;
       const blob = new Blob([batContent], { type: 'application/bat' });
@@ -1488,7 +1821,7 @@ pause
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast('Downloaded Connect-Minecraft.bat! Open it and run /connect 127.0.0.1:8080', 'emerald');
+      showToast(`Downloaded Connect-Minecraft.bat! Open it, then type /connect ${LOCAL_MC_ADDR} in Minecraft.`, 'emerald');
     };
 
     window.copyFriendInviteLink = function () {
