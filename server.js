@@ -9,28 +9,24 @@ const PORT = process.env.PORT || 8080;
 const server = http.createServer((req, res) => {
   const htmlPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(htmlPath)) {
-    const host = req.headers.host;
-    let html = fs.readFileSync(htmlPath, 'utf8');
-    html = html.replace(/ws:\/\/127\.0\.0\.1:8080/g, `wss://${host}`);
-    html = html.replace(/127\.0\.0\.1:8080/g, host);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(html);
+    res.end(fs.readFileSync(htmlPath, 'utf8'));
   } else {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Upload index.html to your GitHub repository.');
+    res.end('Bedrock Cafe Voice Server Running');
   }
 });
 
 const wss = new WebSocketServer({ server });
 const webClients = new Set();
-let mcSocket = null;
+const mcSocketsByRoom = new Map();
 
-function sendMcCommand(ws, commandLine, reqId) {
+function sendMcCommand(ws, commandLine) {
   if (!ws || ws.readyState !== 1) return;
   ws.send(JSON.stringify({
     header: {
       version: 1,
-      requestId: reqId || crypto.randomUUID(),
+      requestId: crypto.randomUUID(),
       messagePurpose: 'commandRequest',
       messageType: 'commandRequest'
     },
@@ -43,56 +39,71 @@ function sendMcCommand(ws, commandLine, reqId) {
 }
 
 function broadcastToWeb(payload) {
-  const data = JSON.stringify(payload);
+  const str = JSON.stringify(payload);
   for (const client of webClients) {
-    if (client.readyState === 1) client.send(data);
+    if (client.readyState === 1) client.send(str);
   }
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  const urlPath = (req.url || '/').split('?')[0];
+  const match = urlPath.match(/\/mc\/([A-Za-z0-9]+)/i);
+  const urlRoom = match ? match[1].toUpperCase() : 'DEFAULT';
   let isBrowser = false;
 
-  const probeTimer = setTimeout(() => {
+  const probe = setTimeout(() => {
     if (!isBrowser) {
-      mcSocket = ws;
-      broadcastToWeb({ type: 'bridge_status', mcConnected: true });
+      mcSocketsByRoom.set(urlRoom, ws);
+      broadcastToWeb({ type: 'bridge_status', roomCode: urlRoom, mcConnected: true });
     }
-  }, 600);
+  }, 450);
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
       if (msg.role === 'web_client') {
         isBrowser = true;
-        clearTimeout(probeTimer);
+        clearTimeout(probe);
+        ws.roomCode = (msg.roomCode || 'DEFAULT').toUpperCase();
         webClients.add(ws);
-        ws.send(JSON.stringify({
-          type: 'bridge_status',
-          mcConnected: Boolean(mcSocket && mcSocket.readyState === 1)
-        }));
+        const hasMc = mcSocketsByRoom.has(ws.roomCode) || mcSocketsByRoom.has('DEFAULT');
+        ws.send(JSON.stringify({ type: 'bridge_status', roomCode: ws.roomCode, mcConnected: hasMc }));
         return;
       }
-      if (msg.body && (msg.body.statusMessage || msg.body.position)) {
-        broadcastToWeb({ type: 'mc_raw', payload: msg });
+      if (msg.type === 'room_sync' || (msg.body && msg.body.statusMessage)) {
+        broadcastToWeb({ type: 'mc_raw', roomCode: urlRoom, payload: msg });
+        return;
       }
+      if (msg.header && msg.header.messagePurpose === 'commandRequest') {
+        const targetMc = mcSocketsByRoom.get(msg.roomCode) || mcSocketsByRoom.get('DEFAULT');
+        if (targetMc && targetMc.readyState === 1) {
+          targetMc.send(JSON.stringify(msg));
+        }
+        return;
+      }
+      broadcastToWeb({ type: 'mc_raw', roomCode: urlRoom, payload: msg });
     } catch (e) {}
   });
 
   ws.on('close', () => {
-    clearTimeout(probeTimer);
-    if (webClients.has(ws)) webClients.delete(ws);
-    if (mcSocket === ws) {
-      mcSocket = null;
-      broadcastToWeb({ type: 'bridge_status', mcConnected: false });
+    clearTimeout(probe);
+    webClients.delete(ws);
+    for (const [r, sock] of mcSocketsByRoom.entries()) {
+      if (sock === ws) {
+        mcSocketsByRoom.delete(r);
+        broadcastToWeb({ type: 'bridge_status', roomCode: r, mcConnected: false });
+      }
     }
   });
 });
 
 setInterval(() => {
-  if (mcSocket && mcSocket.readyState === 1) {
-    sendMcCommand(mcSocket, 'querytarget @a', 'poll-pos');
-    sendMcCommand(mcSocket, 'testfor @a[m=spectator]', 'poll-spec');
+  for (const [, mcWs] of mcSocketsByRoom.entries()) {
+    if (mcWs.readyState === 1) {
+      sendMcCommand(mcWs, 'querytarget @a');
+      sendMcCommand(mcWs, 'testfor @a[m=spectator]');
+    }
   }
-}, 150);
+}, 200);
 
 server.listen(PORT);
