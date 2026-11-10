@@ -370,7 +370,8 @@
       remoteAudioNodes: new Map(),
       wsPlayHeads: new Map(),
       localStream: null,
-      audioCtx: null
+      audioCtx: null,
+      pingTimer: null
     };
 
     const lobbyScreen = document.getElementById('lobbyScreen');
@@ -444,12 +445,18 @@
             peerId: (state.peer && state.peer.id) ? state.peer.id : `ws-${state.myPlayerName}`
           });
         }
+        if (state.pingTimer) clearInterval(state.pingTimer);
+        state.pingTimer = setInterval(() => {
+          sendServer({ type: 'PING' });
+        }, 20000);
       };
 
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
           if (!msg || !msg.bcafe) return;
+
+          if (msg.type === 'PONG') return;
 
           if (msg.type === 'VOICE_CHUNK') {
             handleIncomingWsVoiceChunk(msg);
@@ -480,6 +487,7 @@
       };
 
       ws.onclose = () => {
+        if (state.pingTimer) clearInterval(state.pingTimer);
         setTimeout(connectWebSocket, 2000);
       };
     }
@@ -659,7 +667,8 @@
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true
+            autoGainControl: true,
+            sampleRate: 48000
           },
           video: false
         });
@@ -760,19 +769,19 @@
           sumSq += input[i] * input[i];
         }
         const rms = Math.sqrt(sumSq / input.length);
-        if (rms > 0.008) {
-          hangFrames = 6;
+        if (rms > 0.006) {
+          hangFrames = 8;
         } else if (hangFrames > 0) {
           hangFrames--;
         } else {
           return;
         }
 
-        const b64 = floatTo16BitBase64(input, state.audioCtx.sampleRate, 16000);
+        const b64 = floatTo16BitBase64(input, state.audioCtx.sampleRate, 24000);
         sendServer({
           type: 'VOICE_CHUNK',
           from: state.myPlayerName,
-          sr: 16000,
+          sr: 24000,
           d: b64
         });
       };
@@ -796,7 +805,7 @@
         const pct = Math.min(100, Math.round((avg / 65) * 100));
         playerMicBar.style.width = `${pct}%`;
 
-        const speaking = pct > 12;
+        const speaking = pct > 10;
         if (speaking !== lastBroadcastSpeaking) {
           lastBroadcastSpeaking = speaking;
           sendPlayerMicState(speaking);
@@ -857,7 +866,7 @@
       const floats = base64ToFloat32(msg.d);
       if (floats.length === 0) return;
 
-      const sr = msg.sr || 16000;
+      const sr = msg.sr || 24000;
       const audioBuffer = state.audioCtx.createBuffer(1, floats.length, sr);
       audioBuffer.getChannelData(0).set(floats);
 
@@ -872,8 +881,8 @@
 
       const now = state.audioCtx.currentTime;
       let nextTime = state.wsPlayHeads.get(msg.from) || 0;
-      if (nextTime < now || nextTime > now + 0.5) {
-        nextTime = now + 0.04;
+      if (nextTime < now || nextTime > now + 0.4) {
+        nextTime = now + 0.025;
       }
       src.start(nextTime);
       state.wsPlayHeads.set(msg.from, nextTime + audioBuffer.duration);
