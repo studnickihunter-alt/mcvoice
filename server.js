@@ -95,9 +95,10 @@ wss.on('connection', (ws) => {
   }, 300);
 
   ws.on('message', (raw) => {
+    const rawStr = raw.toString();
     let msg;
     try {
-      msg = JSON.parse(raw.toString());
+      msg = JSON.parse(rawStr);
     } catch (e) {
       return;
     }
@@ -106,6 +107,17 @@ wss.on('connection', (ws) => {
     if (msg.bcafe) {
       clearTimeout(probeTimer);
       webClients.add(ws);
+
+      if (msg.type === 'VOICE_CHUNK') {
+        for (const client of webClients) {
+          if (client !== ws && client.readyState === 1) {
+            try {
+              client.send(rawStr);
+            } catch (e) {}
+          }
+        }
+        return;
+      }
 
       if (msg.type === 'REQUEST_ROSTER') {
         broadcastToBrowsers();
