@@ -344,7 +344,7 @@
     </div>
   </main>
 
-  <div id="remoteAudioContainer" class="hidden"></div>
+  <div id="remoteAudioContainer" style="position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;left:-9999px;top:0;"></div>
 
   <script>
     const isHostRoute =
@@ -368,6 +368,7 @@
       peer: null,
       mediaCalls: new Map(),
       remoteAudioNodes: new Map(),
+      wsPlayHeads: new Map(),
       localStream: null,
       audioCtx: null
     };
@@ -436,11 +437,11 @@
 
       ws.onopen = () => {
         sendServer({ type: 'REQUEST_ROSTER' });
-        if (state.role === 'player' && state.myPlayerName && state.peer && state.peer.id) {
+        if (state.role === 'player' && state.myPlayerName) {
           sendServer({
             type: 'CLAIM_PLAYER',
             playerName: state.myPlayerName,
-            peerId: state.peer.id
+            peerId: (state.peer && state.peer.id) ? state.peer.id : `ws-${state.myPlayerName}`
           });
         }
       };
@@ -448,7 +449,14 @@
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
-          if (msg && msg.bcafe && msg.type === 'ROSTER_SYNC') {
+          if (!msg || !msg.bcafe) return;
+
+          if (msg.type === 'VOICE_CHUNK') {
+            handleIncomingWsVoiceChunk(msg);
+            return;
+          }
+
+          if (msg.type === 'ROSTER_SYNC') {
             state.worldPlayers = msg.worldPlayers || {};
             state.mcConnected = Boolean(msg.mcConnected);
             if (msg.rules) {
@@ -680,16 +688,94 @@
       playerDisplayName.textContent = playerName;
       playerAvatarInitial.textContent = playerName.charAt(0).toUpperCase();
 
-      setupLocalMicMeter();
+      sendServer({
+        type: 'CLAIM_PLAYER',
+        playerName,
+        peerId: `ws-${playerName}`
+      });
+
+      setupLocalMicAndRelay();
       setupPlayerWebRTC(playerName);
     }
 
-    function setupLocalMicMeter() {
+    function floatTo16BitBase64(inputFloats, inSampleRate, outSampleRate) {
+      const ratio = inSampleRate / outSampleRate;
+      const outLength = Math.floor(inputFloats.length / ratio);
+      const bytes = new Uint8Array(outLength * 2);
+      const view = new DataView(bytes.buffer);
+      for (let i = 0; i < outLength; i++) {
+        const idx = Math.min(inputFloats.length - 1, Math.floor(i * ratio));
+        const s = Math.max(-1, Math.min(1, inputFloats[idx]));
+        const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        view.setInt16(i * 2, val, true);
+      }
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToFloat32(b64) {
+      const binary = atob(b64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const view = new DataView(bytes.buffer);
+      const sampleCount = Math.floor(len / 2);
+      const floats = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i++) {
+        const int16 = view.getInt16(i * 2, true);
+        floats[i] = int16 / 32768.0;
+      }
+      return floats;
+    }
+
+    function setupLocalMicAndRelay() {
       state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+
       const source = state.audioCtx.createMediaStreamSource(state.localStream);
       const analyser = state.audioCtx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
+
+      const processor = state.audioCtx.createScriptProcessor(2048, 1, 1);
+      const zeroGain = state.audioCtx.createGain();
+      zeroGain.gain.value = 0;
+      source.connect(processor);
+      processor.connect(zeroGain);
+      zeroGain.connect(state.audioCtx.destination);
+
+      let hangFrames = 0;
+      processor.onaudioprocess = (e) => {
+        if (state.role !== 'player' || state.muted || state.deafened) return;
+        const input = e.inputBuffer.getChannelData(0);
+        let sumSq = 0;
+        for (let i = 0; i < input.length; i++) {
+          sumSq += input[i] * input[i];
+        }
+        const rms = Math.sqrt(sumSq / input.length);
+        if (rms > 0.008) {
+          hangFrames = 6;
+        } else if (hangFrames > 0) {
+          hangFrames--;
+        } else {
+          return;
+        }
+
+        const b64 = floatTo16BitBase64(input, state.audioCtx.sampleRate, 16000);
+        sendServer({
+          type: 'VOICE_CHUNK',
+          from: state.myPlayerName,
+          sr: 16000,
+          d: b64
+        });
+      };
 
       const data = new Uint8Array(analyser.frequencyBinCount);
       let lastBroadcastSpeaking = false;
@@ -710,13 +796,87 @@
         const pct = Math.min(100, Math.round((avg / 65) * 100));
         playerMicBar.style.width = `${pct}%`;
 
-        const speaking = pct > 14;
+        const speaking = pct > 12;
         if (speaking !== lastBroadcastSpeaking) {
           lastBroadcastSpeaking = speaking;
           sendPlayerMicState(speaking);
         }
       }
       tick();
+    }
+
+    function getGainForPlayerName(otherPlayerName) {
+      if (state.deafened) return 0;
+      const me = state.worldPlayers[state.myPlayerName];
+      const other = state.worldPlayers[otherPlayerName];
+      if (!me || !other) return 1.0;
+
+      const meSpec = me.gamemode === 'spectator';
+      const otherSpec = other.gamemode === 'spectator';
+
+      if (state.rules.spectatorIsolation) {
+        if (!meSpec && otherSpec) return 0.0;
+        if (meSpec && otherSpec) return 1.0;
+      }
+
+      const dx = (other.x || 0) - (me.x || 0);
+      const dy = (other.y || 64) - (me.y || 64);
+      const dz = (other.z || 0) - (me.z || 0);
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      return calculateProximityGain(
+        dist,
+        state.rules.minRange,
+        state.rules.maxRange,
+        state.rules.rolloff
+      );
+    }
+
+    function hasActiveWebRTCForPlayer(otherPlayerName) {
+      const other = state.worldPlayers[otherPlayerName];
+      if (!other || !other.linkedPeerId) return false;
+      const node = state.remoteAudioNodes.get(other.linkedPeerId);
+      return Boolean(node && node.hasStream && !node.audioEl.paused);
+    }
+
+    function handleIncomingWsVoiceChunk(msg) {
+      if (state.role !== 'player' || state.deafened) return;
+      if (!msg.from || msg.from === state.myPlayerName || !msg.d) return;
+      if (hasActiveWebRTCForPlayer(msg.from)) return;
+
+      const gainVal = getGainForPlayerName(msg.from);
+      if (gainVal <= 0.001) return;
+
+      if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+
+      const floats = base64ToFloat32(msg.d);
+      if (floats.length === 0) return;
+
+      const sr = msg.sr || 16000;
+      const audioBuffer = state.audioCtx.createBuffer(1, floats.length, sr);
+      audioBuffer.getChannelData(0).set(floats);
+
+      const src = state.audioCtx.createBufferSource();
+      src.buffer = audioBuffer;
+
+      const gainNode = state.audioCtx.createGain();
+      gainNode.gain.value = gainVal;
+
+      src.connect(gainNode);
+      gainNode.connect(state.audioCtx.destination);
+
+      const now = state.audioCtx.currentTime;
+      let nextTime = state.wsPlayHeads.get(msg.from) || 0;
+      if (nextTime < now || nextTime > now + 0.5) {
+        nextTime = now + 0.04;
+      }
+      src.start(nextTime);
+      state.wsPlayHeads.set(msg.from, nextTime + audioBuffer.duration);
     }
 
     function sendPlayerMicState(speaking = false) {
@@ -732,7 +892,30 @@
 
     function setupPlayerWebRTC(playerName) {
       if (state.peer) state.peer.destroy();
-      state.peer = new Peer();
+      state.peer = new Peer({
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            {
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            }
+          ]
+        }
+      });
 
       state.peer.on('open', (myPeerId) => {
         sendServer({
@@ -751,7 +934,10 @@
     function dialOtherLinkedPlayers() {
       if (state.role !== 'player' || !state.peer || !state.peer.id) return;
       Object.values(state.worldPlayers).forEach(p => {
-        if (!p.linkedPeerId || p.linkedPeerId === state.peer.id) return;
+        if (!p.linkedPeerId || p.linkedPeerId.startsWith('ws-') || p.linkedPeerId === state.peer.id) return;
+        const existingNode = state.remoteAudioNodes.get(p.linkedPeerId);
+        if (existingNode && existingNode.hasStream) return;
+
         if (!state.mediaCalls.has(p.linkedPeerId) && state.peer.id < p.linkedPeerId) {
           const call = state.peer.call(p.linkedPeerId, state.localStream, {
             metadata: { playerName: state.myPlayerName }
@@ -761,7 +947,21 @@
       });
     }
 
+    setInterval(() => {
+      if (state.role === 'player') {
+        for (const [peerId, call] of state.mediaCalls.entries()) {
+          const node = state.remoteAudioNodes.get(peerId);
+          if (!node || !node.hasStream) {
+            try { call.close(); } catch (e) {}
+            state.mediaCalls.delete(peerId);
+          }
+        }
+        dialOtherLinkedPlayers();
+      }
+    }, 3500);
+
     function handleIncomingMediaCall(call) {
+      if (!call) return;
       state.mediaCalls.set(call.peer, call);
       call.on('stream', (remoteStream) => {
         setupRemoteSpatialNode(call.peer, remoteStream);
@@ -769,40 +969,28 @@
       call.on('close', () => {
         cleanupRemoteNode(call.peer);
       });
+      call.on('error', () => {
+        cleanupRemoteNode(call.peer);
+      });
     }
 
     function setupRemoteSpatialNode(peerId, remoteStream) {
-      if (state.remoteAudioNodes.has(peerId)) return;
-      if (!state.audioCtx) {
-        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (state.audioCtx.state === 'suspended') {
-        state.audioCtx.resume();
-      }
+      let existing = state.remoteAudioNodes.get(peerId);
+      if (existing && existing.hasStream) return;
 
       const audioEl = document.createElement('audio');
       audioEl.srcObject = remoteStream;
-      audioEl.muted = true;
+      audioEl.muted = false;
+      audioEl.autoplay = true;
       audioEl.playsInline = true;
+      audioEl.volume = 1.0;
       document.getElementById('remoteAudioContainer').appendChild(audioEl);
       audioEl.play().catch(() => {});
 
-      const source = state.audioCtx.createMediaStreamSource(remoteStream);
-      const panner = state.audioCtx.createPanner();
-      panner.panningModel = 'HRTF';
-      panner.distanceModel = 'linear';
-      panner.refDistance = 1;
-      panner.maxDistance = 1000;
-      panner.rolloffFactor = 0;
-
-      const gainNode = state.audioCtx.createGain();
-      gainNode.gain.value = 1;
-
-      source.connect(panner);
-      panner.connect(gainNode);
-      gainNode.connect(state.audioCtx.destination);
-
-      state.remoteAudioNodes.set(peerId, { audioEl, source, panner, gainNode });
+      state.remoteAudioNodes.set(peerId, {
+        audioEl,
+        hasStream: true
+      });
       updateSpatialAudioForAllPeers();
     }
 
@@ -810,9 +998,8 @@
       const node = state.remoteAudioNodes.get(peerId);
       if (node) {
         try {
-          node.source.disconnect();
-          node.panner.disconnect();
-          node.gainNode.disconnect();
+          node.audioEl.pause();
+          node.audioEl.srcObject = null;
           node.audioEl.remove();
         } catch (e) {}
         state.remoteAudioNodes.delete(peerId);
@@ -834,70 +1021,40 @@
     }
 
     function updateSpatialAudioForAllPeers() {
-      if (state.role !== 'player' || !state.audioCtx) return;
-      const me = state.worldPlayers[state.myPlayerName];
-      if (!me) return;
-
-      const listener = state.audioCtx.listener;
-      const rad = (me.yaw || 0) * (Math.PI / 180);
-      const fx = -Math.sin(rad);
-      const fz = Math.cos(rad);
-
-      if (listener.positionX) {
-        listener.positionX.value = me.x || 0;
-        listener.positionY.value = me.y || 64;
-        listener.positionZ.value = me.z || 0;
-        listener.forwardX.value = fx;
-        listener.forwardY.value = 0;
-        listener.forwardZ.value = fz;
-      }
+      if (state.role !== 'player') return;
 
       for (const [peerId, node] of state.remoteAudioNodes.entries()) {
+        if (!node || !node.audioEl) continue;
+
         if (state.deafened) {
-          node.gainNode.gain.setTargetAtTime(0, state.audioCtx.currentTime, 0.05);
+          node.audioEl.volume = 0;
           continue;
         }
 
         const other = Object.values(state.worldPlayers).find(p => p.linkedPeerId === peerId);
         if (!other) {
-          node.gainNode.gain.setTargetAtTime(1, state.audioCtx.currentTime, 0.05);
+          node.audioEl.volume = 1.0;
           continue;
         }
 
-        const meSpec = me.gamemode === 'spectator';
-        const otherSpec = other.gamemode === 'spectator';
-
-        if (state.rules.spectatorIsolation) {
-          if (!meSpec && otherSpec) {
-            node.gainNode.gain.setTargetAtTime(0, state.audioCtx.currentTime, 0.05);
-            continue;
-          }
-          if (meSpec && otherSpec) {
-            node.gainNode.gain.setTargetAtTime(1, state.audioCtx.currentTime, 0.05);
-            continue;
-          }
+        const targetGain = getGainForPlayerName(other.name);
+        node.audioEl.volume = Math.max(0, Math.min(1, targetGain));
+        if (node.audioEl.paused) {
+          node.audioEl.play().catch(() => {});
         }
-
-        if (node.panner.positionX) {
-          node.panner.positionX.value = other.x || 0;
-          node.panner.positionY.value = other.y || 64;
-          node.panner.positionZ.value = other.z || 0;
-        }
-
-        const dx = (other.x || 0) - (me.x || 0);
-        const dy = (other.y || 64) - (me.y || 64);
-        const dz = (other.z || 0) - (me.z || 0);
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        const targetGain = calculateProximityGain(
-          dist,
-          state.rules.minRange,
-          state.rules.maxRange,
-          state.rules.rolloff
-        );
-        node.gainNode.gain.setTargetAtTime(targetGain, state.audioCtx.currentTime, 0.06);
       }
     }
+
+    document.addEventListener('click', () => {
+      if (state.audioCtx && state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+      for (const node of state.remoteAudioNodes.values()) {
+        if (node.audioEl && node.audioEl.paused) {
+          node.audioEl.play().catch(() => {});
+        }
+      }
+    });
 
     playerMuteBtn.addEventListener('click', () => {
       state.muted = !state.muted;
