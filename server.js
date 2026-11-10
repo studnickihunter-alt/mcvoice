@@ -52,7 +52,7 @@ function broadcastToBrowsers() {
     mcConnected: Boolean(
       state.mcSocket &&
       state.mcSocket.readyState === 1 &&
-      Date.now() - state.lastMcPacketAt < 8000
+      Date.now() - state.lastMcPacketAt < 12000
     ),
     worldPlayers: state.worldPlayers,
     rules: state.rules
@@ -84,6 +84,11 @@ function sendMcCommand(ws, commandLine, meta) {
 }
 
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   const probeTimer = setTimeout(() => {
     if (!webClients.has(ws) && ws.readyState === 1) {
       state.mcSocket = ws;
@@ -107,6 +112,11 @@ wss.on('connection', (ws) => {
     if (msg.bcafe) {
       clearTimeout(probeTimer);
       webClients.add(ws);
+
+      if (msg.type === 'PING') {
+        sendJson(ws, { bcafe: true, type: 'PONG' });
+        return;
+      }
 
       if (msg.type === 'VOICE_CHUNK') {
         for (const client of webClients) {
@@ -312,6 +322,18 @@ wss.on('connection', (ws) => {
 
   ws.on('close', cleanup);
   ws.on('error', cleanup);
+});
+
+const interval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) {}
+  });
+}, 25000);
+
+wss.on('close', () => {
+  clearInterval(interval);
 });
 
 setInterval(() => {
