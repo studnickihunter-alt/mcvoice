@@ -120,7 +120,7 @@
         </div>
         <div>
           <span class="font-serif text-lg font-bold tracking-tight text-cream-100 block leading-none">Bedrock Cafe</span>
-          <span class="text-xs text-cream-300">Proximity Voice Lounge</span>
+          <span class="text-xs text-cream-300">Proximity Voice Chat</span>
         </div>
       </div>
 
@@ -129,7 +129,7 @@
           Host
         </span>
         <button id="leaveBtn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rosewood-500/15 hover:bg-rosewood-500/25 text-rosewood-400 border border-rosewood-400/30 transition">
-          Back
+          Leave Chat
         </button>
       </div>
     </div>
@@ -142,27 +142,35 @@
         <div class="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-sage-400/10 blur-xl pointer-events-none"></div>
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sage-400/15 border border-sage-400/30 text-sage-400 text-xs font-semibold mb-4">
-            <span>🌿</span> Join Voice Call
+            <span>🌿</span> Join Voice Chat
           </div>
-          <h2 class="font-serif text-2xl font-bold text-cream-100 mb-2">Join the Lounge</h2>
+          <h2 class="font-serif text-2xl font-bold text-cream-100 mb-2">Join a Table</h2>
           <p class="text-xs text-cream-300 leading-relaxed mb-6">
-            Pick your Minecraft character from the live list of players currently in the world.
+            Enter your Room Code and pick your Minecraft character from the live list of players currently in the world.
           </p>
 
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold text-cream-200">Select Your Minecraft Character</label>
-              <span id="rosterFetchStatus" class="text-[11px] text-cream-300/70 italic">Checking world...</span>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-cream-200 mb-1.5">Room Code</label>
+              <input id="joinCodeInput" type="text" placeholder="e.g. MOSS24" maxlength="10"
+                class="w-full px-4 py-3 rounded-2xl bg-navy-900/90 border border-cream-300/20 text-cream-100 placeholder-cream-300/40 font-mono text-sm uppercase tracking-widest focus:outline-none focus:border-sage-400 transition" />
             </div>
-            <div class="relative">
-              <select id="joinPlayerSelect" disabled
-                class="w-full px-4 py-3 rounded-2xl bg-navy-900/90 border border-cream-300/20 text-cream-100 text-sm focus:outline-none focus:border-sage-400 transition appearance-none disabled:opacity-50 cursor-pointer">
-                <option value="">Waiting for players in Minecraft world...</option>
-              </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-cream-300">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-xs font-semibold text-cream-200">Select Your Minecraft Character</label>
+                <span id="rosterFetchStatus" class="text-[11px] text-cream-300/70 italic">Enter room code...</span>
+              </div>
+              <div class="relative">
+                <select id="joinPlayerSelect" disabled
+                  class="w-full px-4 py-3 rounded-2xl bg-navy-900/90 border border-cream-300/20 text-cream-100 text-sm focus:outline-none focus:border-sage-400 transition appearance-none disabled:opacity-50 cursor-pointer">
+                  <option value="">Waiting for Room Code...</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-cream-300">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -171,7 +179,7 @@
         <div class="mt-6 pt-4 border-t border-cream-300/10">
           <button id="joinTableBtn" disabled
             class="w-full py-3.5 px-5 rounded-2xl bg-sage-500 hover:bg-sage-400 disabled:bg-navy-700 disabled:text-cream-300/40 disabled:cursor-not-allowed text-navy-950 font-bold text-sm shadow-lg shadow-sage-500/20 transition flex items-center justify-center gap-2">
-            <span>Join Voice Call</span>
+            <span>Join Voice Chat</span>
           </button>
           <p id="joinErrorMsg" class="text-xs text-rosewood-400 mt-2.5 text-center hidden"></p>
         </div>
@@ -183,19 +191,23 @@
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-berry-500/15 border border-berry-400/30 text-berry-400 text-xs font-semibold mb-4">
             <span>☕</span> Host Controller
           </div>
-          <h2 class="font-serif text-2xl font-bold text-cream-100 mb-2">World & Voice Settings</h2>
+          <h2 class="font-serif text-2xl font-bold text-cream-100 mb-2">Brew a New Room</h2>
           <p class="text-xs text-cream-300 leading-relaxed mb-5">
-            Open the Host dashboard to get the permanent Minecraft <code class="font-mono text-espresso-400">/connect</code> command and adjust voice proximity range.
+            Hosting does <strong class="text-cream-100">not</strong> link you to a player account. It opens a control dashboard where you get your room's Minecraft <code class="font-mono text-espresso-400">/connect</code> command and adjust voice proximity rules.
           </p>
 
-          <div class="cafe-card-subtle rounded-2xl p-4 space-y-2 text-xs text-cream-200 mb-6">
+          <div class="cafe-card-subtle rounded-2xl p-4 space-y-2.5 text-xs text-cream-200 mb-6">
             <div class="flex items-start gap-2.5">
               <span class="text-espresso-400 font-bold">1.</span>
-              <span>Always the same link and the same <code class="font-mono text-espresso-400">/connect</code> command.</span>
+              <span>Create a room to get a unique Room Code and <code class="font-mono text-espresso-400">/connect</code> command.</span>
             </div>
             <div class="flex items-start gap-2.5">
               <span class="text-espresso-400 font-bold">2.</span>
-              <span>Not tied to a player account—manage settings and see who is linked.</span>
+              <span>Paste the command in your Minecraft Bedrock world chat to link the world.</span>
+            </div>
+            <div class="flex items-start gap-2.5">
+              <span class="text-espresso-400 font-bold">3.</span>
+              <span>Share the room invite link so you and your friends can join the voice chat.</span>
             </div>
           </div>
         </div>
@@ -203,7 +215,7 @@
         <div class="pt-4 border-t border-cream-300/10">
           <button id="hostTableBtn"
             class="w-full py-3.5 px-5 rounded-2xl bg-berry-500 hover:bg-berry-400 text-navy-950 font-bold text-sm shadow-lg shadow-berry-500/20 transition flex items-center justify-center gap-2">
-            <span>Open Host Dashboard</span>
+            <span>Create a New Room (Host Only)</span>
           </button>
         </div>
       </div>
@@ -216,17 +228,19 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
       <div class="cafe-card rounded-3xl p-5 flex flex-col justify-between">
         <div>
-          <span class="text-xs text-cream-300 uppercase tracking-wider font-semibold">Invite Friends</span>
-          <h2 class="font-serif text-2xl font-bold text-espresso-400 mt-1">Permanent Lounge Link</h2>
-          <p class="text-xs text-cream-300 mt-1">Everyone uses this exact same link every time to pick their character and join voice.</p>
+          <span class="text-xs text-cream-300 uppercase tracking-wider font-semibold">Room Code</span>
+          <div class="flex items-baseline gap-3 mt-1">
+            <h2 id="hostRoomCodeDisplay" class="font-serif text-3xl font-bold text-espresso-400 tracking-wide">------</h2>
+          </div>
+          <p class="text-xs text-cream-300 mt-1">Share this link so players (including yourself) can join the voice chat.</p>
         </div>
         <button id="copyInviteLinkBtn"
           class="mt-4 w-full py-2.5 px-4 rounded-xl bg-berry-500/20 hover:bg-berry-500/30 border border-berry-400/40 text-cream-100 text-xs font-semibold transition flex items-center justify-center gap-2">
-          <span id="copyInviteText">Copy Website Link</span>
+          <span id="copyInviteText">Copy Room Invite Link</span>
         </button>
       </div>
 
-      <div class="cafe-card rounded-3xl p-5 md:col-span-2 flex flex-col justify-between space-y-3">
+      <div class="cafe-card rounded-3xl p-5 md:col-span-2 flex flex-col justify-between">
         <div>
           <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
             <span class="text-xs text-cream-300 uppercase tracking-wider font-semibold">Link Minecraft World</span>
@@ -237,21 +251,17 @@
           </div>
 
           <p class="text-xs text-cream-300 mb-3">
-            In Minecraft Bedrock (<strong class="text-cream-100">Settings → Creator → Enable WebSockets ON</strong>, <strong class="text-cream-100">Require Encrypted WebSockets OFF</strong>), paste into chat:
+            Paste this command in your Minecraft Bedrock world chat to link it to this room:
           </p>
 
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
-            <div class="flex-1 px-4 py-2.5 rounded-xl bg-navy-950/90 border border-cream-300/15 font-mono text-xs text-sage-400 select-all overflow-x-auto whitespace-nowrap" id="mcConnectCommandWss">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div class="flex-1 px-4 py-2.5 rounded-xl bg-navy-950/90 border border-cream-300/15 font-mono text-xs text-sage-400 select-all overflow-x-auto whitespace-nowrap" id="mcConnectCommand">
               /connect ...
             </div>
-            <button id="copyMcCmdWssBtn"
+            <button id="copyMcCmdBtn"
               class="px-4 py-2.5 rounded-xl bg-sage-500 hover:bg-sage-400 text-navy-950 font-bold text-xs transition shrink-0">
               Copy Command
             </button>
-          </div>
-
-          <div class="flex items-center justify-between gap-2 text-[11px] text-cream-300/75">
-            <span>Fallback command (if your client omits <code class="font-mono">wss://</code>): <code id="mcConnectCommandPlain" class="font-mono text-espresso-400 select-all">/connect ...</code></span>
           </div>
         </div>
       </div>
@@ -262,7 +272,7 @@
       <div class="lg:col-span-5 cafe-card rounded-3xl p-6 space-y-5">
         <div class="border-b border-cream-300/10 pb-3">
           <h3 class="font-serif text-xl font-bold text-cream-100">House Acoustics</h3>
-          <p class="text-xs text-cream-300">Changes sync immediately to all connected players.</p>
+          <p class="text-xs text-cream-300">Changes sync immediately to all connected players in this room.</p>
         </div>
 
         <div class="space-y-4">
@@ -294,7 +304,7 @@
 
           <div class="pt-2 border-t border-cream-300/10 flex items-center justify-between gap-4">
             <div>
-              <span class="block text-xs font-semibold text-cream-200">Separate Spectator Lounge</span>
+              <span class="block text-xs font-semibold text-cream-200">Separate Spectator Chat</span>
               <span class="text-[11px] text-cream-300/80">Spectators hear each other globally while Alive players cannot hear them.</span>
             </div>
             <label class="relative inline-flex items-center cursor-pointer shrink-0">
@@ -340,7 +350,8 @@
     <div class="cafe-card rounded-3xl p-8 max-w-sm w-full text-center space-y-6">
 
       <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-berry-500/15 border border-berry-400/30 text-berry-400 text-xs font-mono font-semibold">
-        <span>Bedrock Cafe Lounge</span>
+        <span>Table #</span>
+        <span id="playerTableCode">------</span>
       </div>
 
       <div>
@@ -386,6 +397,7 @@
   <script>
     const state = {
       role: null,
+      roomCode: '',
       myPlayerName: '',
       muted: false,
       deafened: false,
@@ -412,20 +424,21 @@
     const roleBadge = document.getElementById('roleBadge');
     const leaveBtn = document.getElementById('leaveBtn');
 
+    const joinCodeInput = document.getElementById('joinCodeInput');
     const joinPlayerSelect = document.getElementById('joinPlayerSelect');
     const rosterFetchStatus = document.getElementById('rosterFetchStatus');
     const joinTableBtn = document.getElementById('joinTableBtn');
     const joinErrorMsg = document.getElementById('joinErrorMsg');
     const hostTableBtn = document.getElementById('hostTableBtn');
 
+    const hostRoomCodeDisplay = document.getElementById('hostRoomCodeDisplay');
     const copyInviteLinkBtn = document.getElementById('copyInviteLinkBtn');
     const copyInviteText = document.getElementById('copyInviteText');
     const mcWorldBadge = document.getElementById('mcWorldBadge');
     const mcWorldDot = document.getElementById('mcWorldDot');
     const mcWorldStatusText = document.getElementById('mcWorldStatusText');
-    const mcConnectCommandWss = document.getElementById('mcConnectCommandWss');
-    const mcConnectCommandPlain = document.getElementById('mcConnectCommandPlain');
-    const copyMcCmdWssBtn = document.getElementById('copyMcCmdWssBtn');
+    const mcConnectCommand = document.getElementById('mcConnectCommand');
+    const copyMcCmdBtn = document.getElementById('copyMcCmdBtn');
 
     const maxRangeSlider = document.getElementById('maxRangeSlider');
     const maxRangeLabel = document.getElementById('maxRangeLabel');
@@ -438,6 +451,7 @@
     const manualPlayerInput = document.getElementById('manualPlayerInput');
     const addManualPlayerBtn = document.getElementById('addManualPlayerBtn');
 
+    const playerTableCode = document.getElementById('playerTableCode');
     const playerAvatarInitial = document.getElementById('playerAvatarInitial');
     const playerDisplayName = document.getElementById('playerDisplayName');
     const playerMicStatusText = document.getElementById('playerMicStatusText');
@@ -447,8 +461,12 @@
     const muteBtnLabel = document.getElementById('muteBtnLabel');
     const deafenBtnLabel = document.getElementById('deafenBtnLabel');
 
-    mcConnectCommandWss.textContent = `/connect wss://${location.host}`;
-    mcConnectCommandPlain.textContent = `/connect ${location.host}`;
+    function generateCafeCode() {
+      const words = ['MOSS', 'FERN', 'SAGE', 'BREW', 'PINE', 'LEAF', 'BEAN', 'MIST', 'PLUM', 'IRIS'];
+      const word = words[Math.floor(Math.random() * words.length)];
+      const num = Math.floor(10 + Math.random() * 89);
+      return `${word}${num}`;
+    }
 
     function sendServer(obj) {
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
@@ -456,9 +474,18 @@
       }
     }
 
-    function connectWebSocket() {
+    function connectRoomWebSocket(roomCode) {
+      const cleanCode = (roomCode || '').trim().toUpperCase();
+      if (!cleanCode) return;
+
+      state.roomCode = cleanCode;
+      if (state.ws) {
+        state.ws.onclose = null;
+        try { state.ws.close(); } catch (e) {}
+      }
+
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${proto}//${location.host}`);
+      const ws = new WebSocket(`${proto}//${location.host}/${cleanCode}`);
       state.ws = ws;
 
       ws.onopen = () => {
@@ -476,6 +503,7 @@
         try {
           const msg = JSON.parse(ev.data);
           if (msg && msg.bcafe && msg.type === 'ROSTER_SYNC') {
+            if (msg.roomCode && msg.roomCode !== state.roomCode) return;
             state.worldPlayers = msg.worldPlayers || {};
             state.mcConnected = Boolean(msg.mcConnected);
             if (msg.rules) {
@@ -499,11 +527,43 @@
       };
 
       ws.onclose = () => {
-        setTimeout(connectWebSocket, 2000);
+        if (state.roomCode === cleanCode) {
+          setTimeout(() => connectRoomWebSocket(cleanCode), 2000);
+        }
       };
     }
 
-    connectWebSocket();
+    let lastProbedCode = '';
+    function probeRoomFromInput(rawCode) {
+      const code = (rawCode || '').trim().toUpperCase();
+      if (code.length < 3) {
+        lastProbedCode = '';
+        state.roomCode = '';
+        if (state.ws) {
+          state.ws.onclose = null;
+          try { state.ws.close(); } catch (e) {}
+          state.ws = null;
+        }
+        rosterFetchStatus.textContent = 'Enter room code...';
+        joinPlayerSelect.innerHTML = '<option value="">Waiting for Room Code...</option>';
+        joinPlayerSelect.disabled = true;
+        joinTableBtn.disabled = true;
+        return;
+      }
+      if (code === lastProbedCode) return;
+      lastProbedCode = code;
+
+      rosterFetchStatus.textContent = 'Checking room...';
+      joinPlayerSelect.innerHTML = `<option value="">Looking up Room #${code}...</option>`;
+      joinPlayerSelect.disabled = true;
+      joinTableBtn.disabled = true;
+      connectRoomWebSocket(code);
+    }
+
+    joinCodeInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      probeRoomFromInput(e.target.value);
+    });
 
     function updateLobbyDropdown() {
       if (state.role !== null) return;
@@ -556,13 +616,21 @@
     });
 
     hostTableBtn.addEventListener('click', () => {
+      const newCode = generateCafeCode();
       state.role = 'host';
+      state.worldPlayers = {};
+
       lobbyScreen.classList.add('hidden');
       playerScreen.classList.add('hidden');
       hostScreen.classList.remove('hidden');
       topStatusArea.classList.remove('hidden');
       topStatusArea.classList.add('flex');
       roleBadge.textContent = 'Host Dashboard';
+
+      hostRoomCodeDisplay.textContent = newCode;
+      mcConnectCommand.textContent = `/connect ${location.host}/${newCode}`;
+
+      connectRoomWebSocket(newCode);
       renderHostRoster();
     });
 
@@ -665,20 +733,22 @@
     });
 
     copyInviteLinkBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(location.origin);
-      copyInviteText.textContent = 'Website Link Copied!';
-      setTimeout(() => { copyInviteText.textContent = 'Copy Website Link'; }, 2000);
+      const inviteUrl = `${location.origin}${location.pathname}?room=${state.roomCode}`;
+      navigator.clipboard.writeText(inviteUrl);
+      copyInviteText.textContent = 'Room Link Copied!';
+      setTimeout(() => { copyInviteText.textContent = 'Copy Room Invite Link'; }, 2000);
     });
 
-    copyMcCmdWssBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(mcConnectCommandWss.textContent.trim());
-      copyMcCmdWssBtn.textContent = 'Copied!';
-      setTimeout(() => { copyMcCmdWssBtn.textContent = 'Copy Command'; }, 1800);
+    copyMcCmdBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(mcConnectCommand.textContent.trim());
+      copyMcCmdBtn.textContent = 'Copied!';
+      setTimeout(() => { copyMcCmdBtn.textContent = 'Copy Command'; }, 1800);
     });
 
     joinTableBtn.addEventListener('click', async () => {
+      const code = joinCodeInput.value.trim().toUpperCase();
       const selectedPlayer = joinPlayerSelect.value;
-      if (!selectedPlayer) return;
+      if (!code || !selectedPlayer) return;
 
       joinErrorMsg.classList.add('hidden');
       joinTableBtn.disabled = true;
@@ -694,17 +764,18 @@
           video: false
         });
         state.localStream = stream;
-        startPlayerSession(selectedPlayer);
+        startPlayerSession(code, selectedPlayer);
       } catch (err) {
-        joinErrorMsg.textContent = 'Microphone permission is required to join the voice call.';
+        joinErrorMsg.textContent = 'Microphone permission is required to join the voice chat.';
         joinErrorMsg.classList.remove('hidden');
         joinTableBtn.disabled = false;
-        joinTableBtn.textContent = 'Join Voice Call';
+        joinTableBtn.textContent = 'Join Voice Chat';
       }
     });
 
-    function startPlayerSession(playerName) {
+    function startPlayerSession(roomCode, playerName) {
       state.role = 'player';
+      state.roomCode = roomCode;
       state.myPlayerName = playerName;
 
       lobbyScreen.classList.add('hidden');
@@ -715,6 +786,7 @@
       topStatusArea.classList.add('flex');
       roleBadge.textContent = playerName;
 
+      playerTableCode.textContent = roomCode;
       playerDisplayName.textContent = playerName;
       playerAvatarInitial.textContent = playerName.charAt(0).toUpperCase();
 
@@ -989,8 +1061,17 @@
           playerName: state.myPlayerName
         });
       }
-      location.reload();
+      location.href = location.pathname;
     });
+
+    (function initFromUrl() {
+      const params = new URLSearchParams(location.search);
+      const roomParam = (params.get('room') || params.get('table') || '').trim().toUpperCase();
+      if (roomParam) {
+        joinCodeInput.value = roomParam;
+        probeRoomFromInput(roomParam);
+      }
+    })();
   </script>
 </body>
 </html>
