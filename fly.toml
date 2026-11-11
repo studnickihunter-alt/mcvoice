@@ -1,12 +1,8 @@
-# fly.toml app configuration file generated for mcvoice on 2026-11-10T19:29:01Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = 'mcvoice'
 primary_region = 'ord'
 
 [build]
+
 [http_service]
   internal_port = 8080
   force_https = false
@@ -24,4 +20,3 @@ primary_region = 'ord'
   memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
