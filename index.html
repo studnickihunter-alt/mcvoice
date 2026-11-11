@@ -354,6 +354,7 @@
     const state = {
       role: isHostRoute ? 'host' : null,
       myPlayerName: '',
+      myPeerId: null,
       muted: false,
       deafened: false,
       mcConnected: false,
@@ -427,7 +428,9 @@
 
     function sendServer(obj) {
       if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-        state.ws.send(JSON.stringify({ bcafe: true, ...obj }));
+        try {
+          state.ws.send(JSON.stringify({ bcafe: true, ...obj }));
+        } catch (e) {}
       }
     }
 
@@ -442,13 +445,13 @@
           sendServer({
             type: 'CLAIM_PLAYER',
             playerName: state.myPlayerName,
-            peerId: (state.peer && state.peer.id) ? state.peer.id : `ws-${state.myPlayerName}`
+            peerId: state.myPeerId || `ws-${state.myPlayerName}`
           });
         }
         if (state.pingTimer) clearInterval(state.pingTimer);
         state.pingTimer = setInterval(() => {
           sendServer({ type: 'PING' });
-        }, 12000);
+        }, 8000);
       };
 
       ws.onmessage = (ev) => {
@@ -488,7 +491,7 @@
 
       ws.onclose = () => {
         if (state.pingTimer) clearInterval(state.pingTimer);
-        setTimeout(connectWebSocket, 1000);
+        setTimeout(connectWebSocket, 500);
       };
     }
 
@@ -499,7 +502,7 @@
       const currentSelection = joinPlayerSelect.value;
       const unlinkedNames = Object.keys(state.worldPlayers).filter(name => {
         const p = state.worldPlayers[name];
-        return p && p.inWorld !== false && !p.linkedPeerId;
+        return p && p.inWorld !== false && !p.linkedPeerId && !p.wsConnected;
       });
 
       joinPlayerSelect.innerHTML = '';
@@ -559,7 +562,7 @@
     function renderHostRoster() {
       if (state.role !== 'host') return;
       const names = Object.keys(state.worldPlayers).sort();
-      const linkedCount = names.filter(n => Boolean(state.worldPlayers[n].linkedPeerId)).length;
+      const linkedCount = names.filter(n => Boolean(state.worldPlayers[n].linkedPeerId || state.worldPlayers[n].wsConnected)).length;
       hostPlayerCountBadge.textContent = `${names.length} In World · ${linkedCount} Linked`;
 
       if (names.length === 0) {
@@ -574,7 +577,7 @@
       hostRosterList.innerHTML = '';
       names.forEach(name => {
         const p = state.worldPlayers[name];
-        const isLinked = Boolean(p.linkedPeerId);
+        const isLinked = Boolean(p.linkedPeerId || p.wsConnected);
         const isSpec = p.gamemode === 'spectator';
 
         const row = document.createElement('div');
@@ -668,6 +671,7 @@
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            channelCount: 1,
             sampleRate: 48000
           },
           video: false
@@ -713,9 +717,14 @@
       const bytes = new Uint8Array(outLength * 2);
       const view = new DataView(bytes.buffer);
       for (let i = 0; i < outLength; i++) {
-        const idx = Math.min(inputFloats.length - 1, Math.floor(i * ratio));
-        const s = Math.max(-1, Math.min(1, inputFloats[idx]));
-        const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        const pos = i * ratio;
+        const idx = Math.floor(pos);
+        const frac = pos - idx;
+        const s0 = inputFloats[idx] || 0;
+        const s1 = inputFloats[Math.min(inputFloats.length - 1, idx + 1)] || 0;
+        const sample = s0 + frac * (s1 - s0);
+        const clamped = Math.max(-1, Math.min(1, sample));
+        const val = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
         view.setInt16(i * 2, val, true);
       }
       let binary = '';
@@ -736,8 +745,7 @@
       const sampleCount = Math.floor(len / 2);
       const floats = new Float32Array(sampleCount);
       for (let i = 0; i < sampleCount; i++) {
-        const int16 = view.getInt16(i * 2, true);
-        floats[i] = int16 / 32768.0;
+        floats[i] = view.getInt16(i * 2, true) / 32768.0;
       }
       return floats;
     }
@@ -753,7 +761,7 @@
       analyser.fftSize = 256;
       source.connect(analyser);
 
-      const processor = state.audioCtx.createScriptProcessor(2048, 1, 1);
+      const processor = state.audioCtx.createScriptProcessor(4096, 1, 1);
       const zeroGain = state.audioCtx.createGain();
       zeroGain.gain.value = 0;
       source.connect(processor);
@@ -769,8 +777,8 @@
           sumSq += input[i] * input[i];
         }
         const rms = Math.sqrt(sumSq / input.length);
-        if (rms > 0.006) {
-          hangFrames = 8;
+        if (rms > 0.005) {
+          hangFrames = 6;
         } else if (hangFrames > 0) {
           hangFrames--;
         } else {
@@ -866,6 +874,12 @@
       const floats = base64ToFloat32(msg.d);
       if (floats.length === 0) return;
 
+      const fadeSamples = Math.min(48, Math.floor(floats.length / 8));
+      for (let i = 0; i < fadeSamples; i++) {
+        const w = i / fadeSamples;
+        floats[i] *= w;
+      }
+
       const sr = msg.sr || 24000;
       const audioBuffer = state.audioCtx.createBuffer(1, floats.length, sr);
       audioBuffer.getChannelData(0).set(floats);
@@ -881,8 +895,10 @@
 
       const now = state.audioCtx.currentTime;
       let nextTime = state.wsPlayHeads.get(msg.from) || 0;
-      if (nextTime < now || nextTime > now + 0.4) {
-        nextTime = now + 0.025;
+      if (nextTime < now) {
+        nextTime = now + 0.05;
+      } else if (nextTime > now + 0.6) {
+        nextTime = now + 0.05;
       }
       src.start(nextTime);
       state.wsPlayHeads.set(msg.from, nextTime + audioBuffer.duration);
@@ -927,6 +943,7 @@
       });
 
       state.peer.on('open', (myPeerId) => {
+        state.myPeerId = myPeerId;
         sendServer({
           type: 'CLAIM_PLAYER',
           playerName,
@@ -945,13 +962,13 @@
     }
 
     function dialOtherLinkedPlayers() {
-      if (state.role !== 'player' || !state.peer || !state.peer.id) return;
+      if (state.role !== 'player' || !state.peer || !state.myPeerId) return;
       Object.values(state.worldPlayers).forEach(p => {
-        if (!p.linkedPeerId || p.linkedPeerId.startsWith('ws-') || p.linkedPeerId === state.peer.id) return;
+        if (!p.linkedPeerId || p.linkedPeerId.startsWith('ws-') || p.linkedPeerId === state.myPeerId) return;
         const existingNode = state.remoteAudioNodes.get(p.linkedPeerId);
         if (existingNode && existingNode.hasStream) return;
 
-        if (!state.mediaCalls.has(p.linkedPeerId) && state.peer.id < p.linkedPeerId) {
+        if (!state.mediaCalls.has(p.linkedPeerId) && state.myPeerId < p.linkedPeerId) {
           const call = state.peer.call(p.linkedPeerId, state.localStream, {
             metadata: { playerName: state.myPlayerName }
           });
@@ -961,24 +978,15 @@
     }
 
     setInterval(() => {
-      if (state.role === 'player') {
-        if (state.myPlayerName) {
-          sendServer({
-            type: 'CLAIM_PLAYER',
-            playerName: state.myPlayerName,
-            peerId: (state.peer && state.peer.id) ? state.peer.id : `ws-${state.myPlayerName}`
-          });
-        }
-        for (const [peerId, call] of state.mediaCalls.entries()) {
-          const node = state.remoteAudioNodes.get(peerId);
-          if (!node || !node.hasStream) {
-            try { call.close(); } catch (e) {}
-            state.mediaCalls.delete(peerId);
-          }
-        }
+      if (state.role === 'player' && state.myPlayerName) {
+        sendServer({
+          type: 'CLAIM_PLAYER',
+          playerName: state.myPlayerName,
+          peerId: state.myPeerId || `ws-${state.myPlayerName}`
+        });
         dialOtherLinkedPlayers();
       }
-    }, 4000);
+    }, 5000);
 
     function handleIncomingMediaCall(call) {
       if (!call) return;
