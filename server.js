@@ -19,11 +19,8 @@ const state = {
 };
 
 const webClients = new Set();
+const pendingQueries = new Map();
 const disconnectTimers = new Map();
-
-let activeRequest = null;
-let pollStepIndex = 0;
-let pollTimer = null;
 
 const server = http.createServer((req, res) => {
   const htmlPath = path.join(__dirname, 'index.html');
@@ -78,52 +75,12 @@ function broadcastToBrowsers() {
   }
 }
 
-function sendNextMcCommand() {
-  if (pollTimer) {
-    clearTimeout(pollTimer);
-    pollTimer = null;
-  }
-
-  const ws = state.mcSocket;
-  if (!ws || ws.readyState !== 1) {
-    activeRequest = null;
-    return;
-  }
-
-  const now = Date.now();
-  if (activeRequest && now - activeRequest.ts < 1500) {
-    pollTimer = setTimeout(sendNextMcCommand, 100);
-    return;
-  }
-
-  const playerNames = Object.keys(state.worldPlayers);
-  const steps = [
-    { commandLine: 'list', kind: 'list' },
-    { commandLine: 'getlocalplayername', kind: 'localname' },
-    { commandLine: 'testfor @a[m=spectator]', kind: 'spec_all' }
-  ];
-
-  playerNames.forEach((name) => {
-    steps.push({
-      commandLine: `querytarget @a[name="${name}"]`,
-      kind: 'pos',
-      playerName: name
-    });
-  });
-
-  if (pollStepIndex >= steps.length) {
-    pollStepIndex = 0;
-  }
-
-  const step = steps[pollStepIndex++];
+function sendMcCommand(ws, commandLine, meta) {
+  if (!ws || ws.readyState !== 1) return;
   const requestId = crypto.randomUUID();
-  activeRequest = {
-    requestId,
-    kind: step.kind,
-    playerName: step.playerName || null,
-    ts: now
-  };
-
+  if (meta) {
+    pendingQueries.set(requestId, { ...meta, ts: Date.now() });
+  }
   sendJson(ws, {
     header: {
       version: 1,
@@ -133,12 +90,10 @@ function sendNextMcCommand() {
     },
     body: {
       version: 1,
-      commandLine: step.commandLine,
+      commandLine,
       origin: { type: 'player' }
     }
   });
-
-  pollTimer = setTimeout(sendNextMcCommand, 1500);
 }
 
 function ensurePlayerEntry(name) {
@@ -174,10 +129,10 @@ wss.on('connection', (ws, req) => {
     ws.isBrowser = false;
     state.mcSocket = ws;
     state.lastMcPacketAt = Date.now();
-    activeRequest = null;
-    pollStepIndex = 0;
+    pendingQueries.clear();
+    sendMcCommand(ws, 'list', { kind: 'list' });
+    sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
     broadcastToBrowsers();
-    pollTimer = setTimeout(sendNextMcCommand, 150);
   }
 
   ws.on('message', (raw) => {
@@ -279,13 +234,8 @@ wss.on('connection', (ws, req) => {
       state.lastMcPacketAt = Date.now();
 
       const reqId = msg.header && msg.header.requestId;
-      const meta =
-        activeRequest && activeRequest.requestId === reqId
-          ? activeRequest
-          : null;
-      if (meta) {
-        activeRequest = null;
-      }
+      const meta = reqId ? pendingQueries.get(reqId) : null;
+      if (reqId) pendingQueries.delete(reqId);
 
       const body = msg.body || {};
 
@@ -356,7 +306,6 @@ wss.on('connection', (ws, req) => {
       }
 
       broadcastToBrowsers();
-      pollTimer = setTimeout(sendNextMcCommand, 110);
     }
   });
 
@@ -382,11 +331,7 @@ wss.on('connection', (ws, req) => {
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      activeRequest = null;
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-        pollTimer = null;
-      }
+      pendingQueries.clear();
       broadcastToBrowsers();
     }
   };
@@ -395,7 +340,54 @@ wss.on('connection', (ws, req) => {
   ws.on('error', cleanup);
 });
 
+let pollTick = 0;
+let playerPollIndex = 0;
+
 setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of pendingQueries.entries()) {
+    if (now - v.ts > 3000) pendingQueries.delete(k);
+  }
+
+  const ws = state.mcSocket;
+  if (!ws || ws.readyState !== 1) return;
+
+  pollTick++;
+
+  if (pollTick % 6 === 1) {
+    sendMcCommand(ws, 'list', { kind: 'list' });
+    return;
+  }
+
+  if (pollTick % 6 === 3) {
+    sendMcCommand(ws, 'testfor @a[m=spectator]', { kind: 'spec_all' });
+    return;
+  }
+
+  const names = Object.keys(state.worldPlayers);
+  if (names.length === 0) {
+    sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
+    return;
+  }
+
+  if (playerPollIndex >= names.length) {
+    playerPollIndex = 0;
+  }
+  const targetName = names[playerPollIndex++];
+  sendMcCommand(ws, `querytarget @a[name="${targetName}"]`, {
+    kind: 'pos',
+    playerName: targetName
+  });
+}, 350);
+
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === 1) {
+      try {
+        ws.ping();
+      } catch (e) {}
+    }
+  });
   for (const client of webClients) {
     sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
   }
