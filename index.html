@@ -433,7 +433,7 @@
 
     function connectWebSocket() {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${proto}//${location.host}`);
+      const ws = new WebSocket(`${proto}//${location.host}/?role=browser`);
       state.ws = ws;
 
       ws.onopen = () => {
@@ -448,7 +448,7 @@
         if (state.pingTimer) clearInterval(state.pingTimer);
         state.pingTimer = setInterval(() => {
           sendServer({ type: 'PING' });
-        }, 20000);
+        }, 12000);
       };
 
       ws.onmessage = (ev) => {
@@ -456,7 +456,7 @@
           const msg = JSON.parse(ev.data);
           if (!msg || !msg.bcafe) return;
 
-          if (msg.type === 'PONG') return;
+          if (msg.type === 'PONG' || msg.type === 'KEEPALIVE') return;
 
           if (msg.type === 'VOICE_CHUNK') {
             handleIncomingWsVoiceChunk(msg);
@@ -488,7 +488,7 @@
 
       ws.onclose = () => {
         if (state.pingTimer) clearInterval(state.pingTimer);
-        setTimeout(connectWebSocket, 2000);
+        setTimeout(connectWebSocket, 1000);
       };
     }
 
@@ -934,6 +934,10 @@
         });
       });
 
+      state.peer.on('disconnected', () => {
+        try { state.peer.reconnect(); } catch (e) {}
+      });
+
       state.peer.on('call', (call) => {
         call.answer(state.localStream);
         handleIncomingMediaCall(call);
@@ -958,6 +962,13 @@
 
     setInterval(() => {
       if (state.role === 'player') {
+        if (state.myPlayerName) {
+          sendServer({
+            type: 'CLAIM_PLAYER',
+            playerName: state.myPlayerName,
+            peerId: (state.peer && state.peer.id) ? state.peer.id : `ws-${state.myPlayerName}`
+          });
+        }
         for (const [peerId, call] of state.mediaCalls.entries()) {
           const node = state.remoteAudioNodes.get(peerId);
           if (!node || !node.hasStream) {
@@ -967,7 +978,7 @@
         }
         dialOtherLinkedPlayers();
       }
-    }, 3500);
+    }, 4000);
 
     function handleIncomingMediaCall(call) {
       if (!call) return;
