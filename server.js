@@ -6,6 +6,14 @@ const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 8080;
 
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
+});
+
 const state = {
   mcSocket: null,
   lastMcPacketAt: 0,
@@ -22,11 +30,13 @@ const webClients = new Set();
 const pendingQueries = new Map();
 const disconnectTimers = new Map();
 
-let activeRequest = null;
-let pollStepIndex = 0;
-let pollTimer = null;
-
 const server = http.createServer((req, res) => {
+  if (req.url === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    return;
+  }
+
   const htmlPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(htmlPath)) {
     res.writeHead(200, {
@@ -44,7 +54,7 @@ server.keepAliveTimeout = 120000;
 server.headersTimeout = 125000;
 
 server.on('connection', (socket) => {
-  socket.setKeepAlive(true, 10000);
+  socket.setKeepAlive(true, 5000);
   socket.setNoDelay(true);
 });
 
@@ -79,52 +89,12 @@ function broadcastToBrowsers() {
   }
 }
 
-function sendNextMcCommand() {
-  if (pollTimer) {
-    clearTimeout(pollTimer);
-    pollTimer = null;
-  }
-
-  const ws = state.mcSocket;
-  if (!ws || ws.readyState !== 1) {
-    activeRequest = null;
-    return;
-  }
-
-  const now = Date.now();
-  if (activeRequest && now - activeRequest.ts < 1500) {
-    pollTimer = setTimeout(sendNextMcCommand, 100);
-    return;
-  }
-
-  const playerNames = Object.keys(state.worldPlayers);
-  const steps = [
-    { commandLine: 'list', kind: 'list' },
-    { commandLine: 'getlocalplayername', kind: 'localname' },
-    { commandLine: 'testfor @a[m=spectator]', kind: 'spec_all' }
-  ];
-
-  playerNames.forEach((name) => {
-    steps.push({
-      commandLine: `querytarget @a[name="${name}"]`,
-      kind: 'pos',
-      playerName: name
-    });
-  });
-
-  if (pollStepIndex >= steps.length) {
-    pollStepIndex = 0;
-  }
-
-  const step = steps[pollStepIndex++];
+function sendMcCommand(ws, commandLine, meta) {
+  if (!ws || ws.readyState !== 1) return;
   const requestId = crypto.randomUUID();
-  activeRequest = {
-    requestId,
-    kind: step.kind,
-    playerName: step.playerName || null,
-    ts: now
-  };
-
+  if (meta) {
+    pendingQueries.set(requestId, { ...meta, ts: Date.now() });
+  }
   sendJson(ws, {
     header: {
       version: 1,
@@ -134,12 +104,10 @@ function sendNextMcCommand() {
     },
     body: {
       version: 1,
-      commandLine: step.commandLine,
+      commandLine,
       origin: { type: 'player' }
     }
   });
-
-  pollTimer = setTimeout(sendNextMcCommand, 1500);
 }
 
 function ensurePlayerEntry(name) {
@@ -165,25 +133,16 @@ function ensurePlayerEntry(name) {
 
 wss.on('connection', (ws, req) => {
   const reqUrl = req.url || '';
-  const isBrowser = reqUrl.includes('role=browser');
+  const isBrowserUrl = reqUrl.includes('role=browser');
 
-  ws.isAlive = true;
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
-
-  if (isBrowser) {
+  if (isBrowserUrl) {
     ws.isBrowser = true;
     webClients.add(ws);
     broadcastToBrowsers();
   } else {
-    ws.isBrowser = false;
-    state.mcSocket = ws;
-    state.lastMcPacketAt = Date.now();
-    pendingQueries.clear();
+    // Probe potential Minecraft client without overwriting active state.mcSocket yet
     sendMcCommand(ws, 'list', { kind: 'list' });
     sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
-    broadcastToBrowsers();
   }
 
   ws.on('message', (raw) => {
@@ -382,11 +341,7 @@ wss.on('connection', (ws, req) => {
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      activeRequest = null;
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-        pollTimer = null;
-      }
+      pendingQueries.clear();
       broadcastToBrowsers();
     }
   };
@@ -433,17 +388,15 @@ setInterval(() => {
     kind: 'pos',
     playerName: targetName
   });
-}, 350);
+}, 400);
 
 setInterval(() => {
   wss.clients.forEach((ws) => {
-    if (ws.isAlive === false) {
-      return ws.terminate();
+    if (ws.readyState === 1) {
+      try {
+        ws.ping();
+      } catch (e) {}
     }
-    ws.isAlive = false;
-    try {
-      ws.ping();
-    } catch (e) {}
   });
 
   for (const client of webClients) {
