@@ -22,6 +22,10 @@ const webClients = new Set();
 const pendingQueries = new Map();
 const disconnectTimers = new Map();
 
+let activeRequest = null;
+let pollStepIndex = 0;
+let pollTimer = null;
+
 const server = http.createServer((req, res) => {
   const htmlPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(htmlPath)) {
@@ -36,11 +40,11 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 70000;
+server.keepAliveTimeout = 120000;
+server.headersTimeout = 125000;
 
 server.on('connection', (socket) => {
-  socket.setKeepAlive(true, 5000);
+  socket.setKeepAlive(true, 10000);
   socket.setNoDelay(true);
 });
 
@@ -75,12 +79,52 @@ function broadcastToBrowsers() {
   }
 }
 
-function sendMcCommand(ws, commandLine, meta) {
-  if (!ws || ws.readyState !== 1) return;
-  const requestId = crypto.randomUUID();
-  if (meta) {
-    pendingQueries.set(requestId, { ...meta, ts: Date.now() });
+function sendNextMcCommand() {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
   }
+
+  const ws = state.mcSocket;
+  if (!ws || ws.readyState !== 1) {
+    activeRequest = null;
+    return;
+  }
+
+  const now = Date.now();
+  if (activeRequest && now - activeRequest.ts < 1500) {
+    pollTimer = setTimeout(sendNextMcCommand, 100);
+    return;
+  }
+
+  const playerNames = Object.keys(state.worldPlayers);
+  const steps = [
+    { commandLine: 'list', kind: 'list' },
+    { commandLine: 'getlocalplayername', kind: 'localname' },
+    { commandLine: 'testfor @a[m=spectator]', kind: 'spec_all' }
+  ];
+
+  playerNames.forEach((name) => {
+    steps.push({
+      commandLine: `querytarget @a[name="${name}"]`,
+      kind: 'pos',
+      playerName: name
+    });
+  });
+
+  if (pollStepIndex >= steps.length) {
+    pollStepIndex = 0;
+  }
+
+  const step = steps[pollStepIndex++];
+  const requestId = crypto.randomUUID();
+  activeRequest = {
+    requestId,
+    kind: step.kind,
+    playerName: step.playerName || null,
+    ts: now
+  };
+
   sendJson(ws, {
     header: {
       version: 1,
@@ -90,10 +134,12 @@ function sendMcCommand(ws, commandLine, meta) {
     },
     body: {
       version: 1,
-      commandLine,
+      commandLine: step.commandLine,
       origin: { type: 'player' }
     }
   });
+
+  pollTimer = setTimeout(sendNextMcCommand, 1500);
 }
 
 function ensurePlayerEntry(name) {
@@ -120,6 +166,11 @@ function ensurePlayerEntry(name) {
 wss.on('connection', (ws, req) => {
   const reqUrl = req.url || '';
   const isBrowser = reqUrl.includes('role=browser');
+
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
 
   if (isBrowser) {
     ws.isBrowser = true;
@@ -325,13 +376,17 @@ wss.on('connection', (ws, req) => {
           state.worldPlayers[name].speaking = false;
           broadcastToBrowsers();
         }
-      }, 15000);
+      }, 25000);
       disconnectTimers.set(name, timer);
     }
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      pendingQueries.clear();
+      activeRequest = null;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
       broadcastToBrowsers();
     }
   };
@@ -382,12 +437,15 @@ setInterval(() => {
 
 setInterval(() => {
   wss.clients.forEach((ws) => {
-    if (ws.readyState === 1) {
-      try {
-        ws.ping();
-      } catch (e) {}
+    if (ws.isAlive === false) {
+      return ws.terminate();
     }
+    ws.isAlive = false;
+    try {
+      ws.ping();
+    } catch (e) {}
   });
+
   for (const client of webClients) {
     sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
   }
