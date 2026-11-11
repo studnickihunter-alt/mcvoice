@@ -50,8 +50,8 @@ const server = http.createServer((req, res) => {
   }
 });
 
-server.keepAliveTimeout = 120000;
-server.headersTimeout = 125000;
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
 
 server.on('connection', (socket) => {
   socket.setKeepAlive(true, 5000);
@@ -135,14 +135,22 @@ wss.on('connection', (ws, req) => {
   const reqUrl = req.url || '';
   const isBrowserUrl = reqUrl.includes('role=browser');
 
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   if (isBrowserUrl) {
     ws.isBrowser = true;
     webClients.add(ws);
     broadcastToBrowsers();
   } else {
-    // Probe potential Minecraft client without overwriting active state.mcSocket yet
+    state.mcSocket = ws;
+    state.lastMcPacketAt = Date.now();
+    pendingQueries.clear();
     sendMcCommand(ws, 'list', { kind: 'list' });
     sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
+    broadcastToBrowsers();
   }
 
   ws.on('message', (raw) => {
@@ -402,7 +410,7 @@ setInterval(() => {
   for (const client of webClients) {
     sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
   }
-}, 10000);
+}, 5000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bedrock Cafe listening on port ${PORT}`);
