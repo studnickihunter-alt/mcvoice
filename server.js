@@ -19,13 +19,19 @@ const state = {
 };
 
 const webClients = new Set();
-const pendingQueries = new Map();
 const disconnectTimers = new Map();
+
+let activeRequest = null;
+let pollStepIndex = 0;
+let pollTimer = null;
 
 const server = http.createServer((req, res) => {
   const htmlPath = path.join(__dirname, 'index.html');
   if (fs.existsSync(htmlPath)) {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store'
+    });
     res.end(fs.readFileSync(htmlPath, 'utf8'));
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -33,8 +39,17 @@ const server = http.createServer((req, res) => {
   }
 });
 
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 70000;
+
+server.on('connection', (socket) => {
+  socket.setKeepAlive(true, 5000);
+  socket.setNoDelay(true);
+});
+
 const wss = new WebSocketServer({
   server,
+  perMessageDeflate: false,
   handleProtocols: () => false
 });
 
@@ -47,10 +62,7 @@ function sendJson(ws, obj) {
 }
 
 function isMcConnected() {
-  return Boolean(
-    state.mcSocket &&
-    state.mcSocket.readyState === 1
-  );
+  return Boolean(state.mcSocket && state.mcSocket.readyState === 1);
 }
 
 function broadcastToBrowsers() {
@@ -66,13 +78,52 @@ function broadcastToBrowsers() {
   }
 }
 
-function sendMcCommand(ws, commandLine, meta) {
-  if (!ws || ws.readyState !== 1) return;
-  if (pendingQueries.size > 25) return;
-  const requestId = crypto.randomUUID();
-  if (meta) {
-    pendingQueries.set(requestId, { ...meta, ts: Date.now() });
+function sendNextMcCommand() {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
   }
+
+  const ws = state.mcSocket;
+  if (!ws || ws.readyState !== 1) {
+    activeRequest = null;
+    return;
+  }
+
+  const now = Date.now();
+  if (activeRequest && now - activeRequest.ts < 1500) {
+    pollTimer = setTimeout(sendNextMcCommand, 100);
+    return;
+  }
+
+  const playerNames = Object.keys(state.worldPlayers);
+  const steps = [
+    { commandLine: 'list', kind: 'list' },
+    { commandLine: 'getlocalplayername', kind: 'localname' },
+    { commandLine: 'testfor @a[m=spectator]', kind: 'spec_all' }
+  ];
+
+  playerNames.forEach((name) => {
+    steps.push({
+      commandLine: `querytarget @a[name="${name}"]`,
+      kind: 'pos',
+      playerName: name
+    });
+  });
+
+  if (pollStepIndex >= steps.length) {
+    pollStepIndex = 0;
+  }
+
+  const step = steps[pollStepIndex++];
+  const requestId = crypto.randomUUID();
+  activeRequest = {
+    requestId,
+    kind: step.kind,
+    playerName: step.playerName || null,
+    ts: now
+  };
+
   sendJson(ws, {
     header: {
       version: 1,
@@ -82,10 +133,33 @@ function sendMcCommand(ws, commandLine, meta) {
     },
     body: {
       version: 1,
-      commandLine,
+      commandLine: step.commandLine,
       origin: { type: 'player' }
     }
   });
+
+  pollTimer = setTimeout(sendNextMcCommand, 1500);
+}
+
+function ensurePlayerEntry(name) {
+  if (!state.worldPlayers[name]) {
+    state.worldPlayers[name] = {
+      name,
+      x: 0,
+      y: 64,
+      z: 0,
+      yaw: 0,
+      gamemode: 'survival',
+      inWorld: true,
+      linkedPeerId: null,
+      wsConnected: false,
+      muted: false,
+      deafened: false,
+      speaking: false
+    };
+  } else {
+    state.worldPlayers[name].inWorld = true;
+  }
 }
 
 wss.on('connection', (ws, req) => {
@@ -100,10 +174,10 @@ wss.on('connection', (ws, req) => {
     ws.isBrowser = false;
     state.mcSocket = ws;
     state.lastMcPacketAt = Date.now();
-    pendingQueries.clear();
-    sendMcCommand(ws, 'list', { kind: 'list' });
-    sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
+    activeRequest = null;
+    pollStepIndex = 0;
     broadcastToBrowsers();
+    pollTimer = setTimeout(sendNextMcCommand, 150);
   }
 
   ws.on('message', (raw) => {
@@ -144,30 +218,23 @@ wss.on('connection', (ws, req) => {
       } else if (msg.type === 'CLAIM_PLAYER' && msg.playerName) {
         const name = msg.playerName;
         ws.playerName = name;
-        ws.peerId = msg.peerId;
 
         if (disconnectTimers.has(name)) {
           clearTimeout(disconnectTimers.get(name));
           disconnectTimers.delete(name);
         }
 
-        if (!state.worldPlayers[name]) {
-          state.worldPlayers[name] = {
-            name,
-            x: 0,
-            y: 64,
-            z: 0,
-            yaw: 0,
-            gamemode: 'survival',
-            inWorld: true,
-            linkedPeerId: msg.peerId,
-            muted: false,
-            deafened: false,
-            speaking: false
-          };
-        } else {
+        ensurePlayerEntry(name);
+        state.worldPlayers[name].wsConnected = true;
+
+        if (msg.peerId && !msg.peerId.startsWith('ws-')) {
           state.worldPlayers[name].linkedPeerId = msg.peerId;
+          ws.peerId = msg.peerId;
+        } else if (!state.worldPlayers[name].linkedPeerId) {
+          state.worldPlayers[name].linkedPeerId = `ws-${name}`;
+          ws.peerId = `ws-${name}`;
         }
+
         broadcastToBrowsers();
       } else if (
         msg.type === 'PLAYER_MIC_STATE' &&
@@ -183,20 +250,8 @@ wss.on('connection', (ws, req) => {
         broadcastToBrowsers();
       } else if (msg.type === 'ADD_MANUAL_PLAYER' && msg.playerName) {
         const name = msg.playerName.trim();
-        if (name && !state.worldPlayers[name]) {
-          state.worldPlayers[name] = {
-            name,
-            x: 0,
-            y: 64,
-            z: 0,
-            yaw: 0,
-            gamemode: 'survival',
-            inWorld: true,
-            linkedPeerId: null,
-            muted: false,
-            deafened: false,
-            speaking: false
-          };
+        if (name) {
+          ensurePlayerEntry(name);
           broadcastToBrowsers();
         }
       } else if (
@@ -209,6 +264,7 @@ wss.on('connection', (ws, req) => {
           disconnectTimers.delete(msg.playerName);
         }
         state.worldPlayers[msg.playerName].linkedPeerId = null;
+        state.worldPlayers[msg.playerName].wsConnected = false;
         state.worldPlayers[msg.playerName].speaking = false;
         ws.playerName = null;
         broadcastToBrowsers();
@@ -223,23 +279,29 @@ wss.on('connection', (ws, req) => {
       state.lastMcPacketAt = Date.now();
 
       const reqId = msg.header && msg.header.requestId;
-      const meta = reqId ? pendingQueries.get(reqId) : null;
-      if (reqId) pendingQueries.delete(reqId);
+      const meta =
+        activeRequest && activeRequest.requestId === reqId
+          ? activeRequest
+          : null;
+      if (meta) {
+        activeRequest = null;
+      }
 
       const body = msg.body || {};
 
       if (
         (meta && meta.kind === 'list') ||
         typeof body.players === 'string' ||
-        typeof body.statusMessage === 'string'
+        (typeof body.statusMessage === 'string' &&
+          body.statusMessage.includes('players online:'))
       ) {
         let names = [];
         if (typeof body.players === 'string') {
-          names = body.players.split(',').map((s) => s.trim()).filter(Boolean);
-        } else if (
-          typeof body.statusMessage === 'string' &&
-          body.statusMessage.includes('players online:')
-        ) {
+          names = body.players
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        } else if (typeof body.statusMessage === 'string') {
           const lines = body.statusMessage.split('\n');
           if (lines.length > 1) {
             names = lines
@@ -250,44 +312,25 @@ wss.on('connection', (ws, req) => {
               .filter(Boolean);
           }
         }
-        names.forEach((n) => {
-          if (!state.worldPlayers[n]) {
-            state.worldPlayers[n] = {
-              name: n,
-              x: 0,
-              y: 64,
-              z: 0,
-              yaw: 0,
-              gamemode: 'survival',
-              inWorld: true,
-              linkedPeerId: null,
-              muted: false,
-              deafened: false,
-              speaking: false
-            };
-          } else {
-            state.worldPlayers[n].inWorld = true;
-          }
-        });
+        names.forEach((n) => ensurePlayerEntry(n));
       }
 
       if (typeof body.localplayername === 'string') {
         const n = body.localplayername.trim();
-        if (n && !state.worldPlayers[n]) {
-          state.worldPlayers[n] = {
-            name: n,
-            x: 0,
-            y: 64,
-            z: 0,
-            yaw: 0,
-            gamemode: 'survival',
-            inWorld: true,
-            linkedPeerId: null,
-            muted: false,
-            deafened: false,
-            speaking: false
-          };
-        }
+        if (n) ensurePlayerEntry(n);
+      }
+
+      if (meta && meta.kind === 'spec_all') {
+        const specNames = new Set(
+          body.statusCode === 0 && Array.isArray(body.victim)
+            ? body.victim
+            : []
+        );
+        Object.keys(state.worldPlayers).forEach((name) => {
+          state.worldPlayers[name].gamemode = specNames.has(name)
+            ? 'spectator'
+            : 'survival';
+        });
       }
 
       if (meta && meta.kind === 'pos' && meta.playerName && body.details) {
@@ -298,32 +341,22 @@ wss.on('connection', (ws, req) => {
               : body.details;
           const target = Array.isArray(parsed) ? parsed[0] : parsed;
           if (target && target.position && state.worldPlayers[meta.playerName]) {
-            state.worldPlayers[meta.playerName].x = Number(target.position.x) || 0;
-            state.worldPlayers[meta.playerName].y = Number(target.position.y) || 64;
-            state.worldPlayers[meta.playerName].z = Number(target.position.z) || 0;
+            state.worldPlayers[meta.playerName].x =
+              Number(target.position.x) || 0;
+            state.worldPlayers[meta.playerName].y =
+              Number(target.position.y) || 64;
+            state.worldPlayers[meta.playerName].z =
+              Number(target.position.z) || 0;
             if (target.yRot !== undefined) {
-              state.worldPlayers[meta.playerName].yaw = Number(target.yRot) || 0;
+              state.worldPlayers[meta.playerName].yaw =
+                Number(target.yRot) || 0;
             }
           }
         } catch (e) {}
       }
 
-      if (
-        meta &&
-        meta.kind === 'spec' &&
-        meta.playerName &&
-        state.worldPlayers[meta.playerName]
-      ) {
-        const isSpec =
-          body.statusCode === 0 &&
-          Array.isArray(body.victim) &&
-          body.victim.length > 0;
-        state.worldPlayers[meta.playerName].gamemode = isSpec
-          ? 'spectator'
-          : 'survival';
-      }
-
       broadcastToBrowsers();
+      pollTimer = setTimeout(sendNextMcCommand, 110);
     }
   });
 
@@ -332,24 +365,28 @@ wss.on('connection', (ws, req) => {
 
     if (ws.playerName && state.worldPlayers[ws.playerName]) {
       const name = ws.playerName;
-      const closingPeerId = ws.peerId;
       const timer = setTimeout(() => {
         disconnectTimers.delete(name);
-        if (
-          state.worldPlayers[name] &&
-          state.worldPlayers[name].linkedPeerId === closingPeerId
-        ) {
+        const stillConnected = Array.from(webClients).some(
+          (c) => c.playerName === name && c.readyState === 1
+        );
+        if (!stillConnected && state.worldPlayers[name]) {
           state.worldPlayers[name].linkedPeerId = null;
+          state.worldPlayers[name].wsConnected = false;
           state.worldPlayers[name].speaking = false;
           broadcastToBrowsers();
         }
-      }, 8000);
+      }, 15000);
       disconnectTimers.set(name, timer);
     }
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      pendingQueries.clear();
+      activeRequest = null;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
       broadcastToBrowsers();
     }
   };
@@ -358,37 +395,11 @@ wss.on('connection', (ws, req) => {
   ws.on('error', cleanup);
 });
 
-let tickCount = 0;
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of pendingQueries.entries()) {
-    if (now - v.ts > 3000) pendingQueries.delete(k);
-  }
-
-  if (state.mcSocket && state.mcSocket.readyState === 1) {
-    tickCount++;
-    if (tickCount % 4 === 1) {
-      sendMcCommand(state.mcSocket, 'list', { kind: 'list' });
-      sendMcCommand(state.mcSocket, 'getlocalplayername', { kind: 'localname' });
-    }
-    Object.keys(state.worldPlayers).forEach((name) => {
-      sendMcCommand(state.mcSocket, `querytarget @a[name="${name}"]`, {
-        kind: 'pos',
-        playerName: name
-      });
-      sendMcCommand(state.mcSocket, `testfor @a[name="${name}",m=spectator]`, {
-        kind: 'spec',
-        playerName: name
-      });
-    });
-  }
-}, 650);
-
 setInterval(() => {
   for (const client of webClients) {
     sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
   }
-}, 15000);
+}, 10000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bedrock Cafe listening on port ${PORT}`);
