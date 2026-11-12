@@ -27,8 +27,12 @@ const state = {
 };
 
 const webClients = new Set();
-const pendingQueries = new Map();
 const disconnectTimers = new Map();
+
+let inFlightRequest = null;
+let pollStep = 0;
+let playerPollIndex = 0;
+let nextPollTimer = null;
 
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {
@@ -54,13 +58,14 @@ server.keepAliveTimeout = 0;
 server.headersTimeout = 0;
 
 server.on('connection', (socket) => {
-  socket.setKeepAlive(true, 5000);
+  socket.setKeepAlive(true, 10000);
   socket.setNoDelay(true);
 });
 
 const wss = new WebSocketServer({
   server,
   perMessageDeflate: false,
+  maxPayload: 256 * 1024,
   handleProtocols: () => false
 });
 
@@ -84,16 +89,41 @@ function broadcastToBrowsers() {
     worldPlayers: state.worldPlayers,
     rules: state.rules
   };
+  const str = JSON.stringify(payload);
   for (const client of webClients) {
-    sendJson(client, payload);
+    if (client.readyState === 1) {
+      try {
+        client.send(str);
+      } catch (e) {}
+    }
   }
 }
 
-function sendMcCommand(ws, commandLine, meta) {
+function sendMcSubscribe(ws, eventName) {
+  if (!ws || ws.readyState !== 1) return;
+  sendJson(ws, {
+    header: {
+      version: 1,
+      requestId: crypto.randomUUID(),
+      messagePurpose: 'subscribe',
+      messageType: 'commandRequest'
+    },
+    body: {
+      eventName
+    }
+  });
+}
+
+function sendRawMcCommand(ws, commandLine, meta) {
   if (!ws || ws.readyState !== 1) return;
   const requestId = crypto.randomUUID();
   if (meta) {
-    pendingQueries.set(requestId, { ...meta, ts: Date.now() });
+    inFlightRequest = {
+      requestId,
+      kind: meta.kind,
+      playerName: meta.playerName || null,
+      ts: Date.now()
+    };
   }
   sendJson(ws, {
     header: {
@@ -108,6 +138,62 @@ function sendMcCommand(ws, commandLine, meta) {
       origin: { type: 'player' }
     }
   });
+}
+
+function scheduleNextMcPoll(delayMs = 280) {
+  if (nextPollTimer) {
+    clearTimeout(nextPollTimer);
+    nextPollTimer = null;
+  }
+  nextPollTimer = setTimeout(runNextMcPoll, delayMs);
+}
+
+function runNextMcPoll() {
+  nextPollTimer = null;
+  const ws = state.mcSocket;
+  if (!ws || ws.readyState !== 1) {
+    inFlightRequest = null;
+    return;
+  }
+
+  const now = Date.now();
+  // Never queue multiple commands if Minecraft hasn't answered the current one yet
+  if (inFlightRequest && now - inFlightRequest.ts < 2200) {
+    scheduleNextMcPoll(300);
+    return;
+  }
+  inFlightRequest = null;
+
+  pollStep++;
+
+  if (pollStep % 8 === 1) {
+    sendRawMcCommand(ws, 'list', { kind: 'list' });
+    scheduleNextMcPoll(2200);
+    return;
+  }
+
+  if (pollStep % 8 === 4) {
+    sendRawMcCommand(ws, 'testfor @a[m=spectator]', { kind: 'spec_all' });
+    scheduleNextMcPoll(2200);
+    return;
+  }
+
+  const names = Object.keys(state.worldPlayers);
+  if (names.length === 0) {
+    sendRawMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
+    scheduleNextMcPoll(2200);
+    return;
+  }
+
+  if (playerPollIndex >= names.length) {
+    playerPollIndex = 0;
+  }
+  const targetName = names[playerPollIndex++];
+  sendRawMcCommand(ws, `querytarget @a[name="${targetName}"]`, {
+    kind: 'pos',
+    playerName: targetName
+  });
+  scheduleNextMcPoll(2200);
 }
 
 function ensurePlayerEntry(name) {
@@ -135,26 +221,38 @@ wss.on('connection', (ws, req) => {
   const reqUrl = req.url || '';
   const isBrowserUrl = reqUrl.includes('role=browser');
 
-  ws.isAlive = true;
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
-
   if (isBrowserUrl) {
     ws.isBrowser = true;
     webClients.add(ws);
     broadcastToBrowsers();
   } else {
-    state.mcSocket = ws;
-    state.lastMcPacketAt = Date.now();
-    pendingQueries.clear();
-    sendMcCommand(ws, 'list', { kind: 'list' });
-    sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
-    broadcastToBrowsers();
+    // Send a single lightweight probe; do NOT set state.mcSocket until it replies with a valid MC header
+    sendRawMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
   }
 
   ws.on('message', (raw) => {
     const rawStr = raw.toString();
+
+    // Fast path for VOICE_CHUNK: only forward to active player sockets, never to host dashboard
+    if (rawStr.includes('"VOICE_CHUNK"')) {
+      ws.isBrowser = true;
+      webClients.add(ws);
+      for (const client of webClients) {
+        if (
+          client !== ws &&
+          client.readyState === 1 &&
+          client.playerName &&
+          client._socket &&
+          client._socket.bufferSize < 65536
+        ) {
+          try {
+            client.send(rawStr);
+          } catch (e) {}
+        }
+      }
+      return;
+    }
+
     let msg;
     try {
       msg = JSON.parse(rawStr);
@@ -166,23 +264,9 @@ wss.on('connection', (ws, req) => {
     if (msg.bcafe) {
       ws.isBrowser = true;
       webClients.add(ws);
-      if (state.mcSocket === ws) {
-        state.mcSocket = null;
-      }
 
       if (msg.type === 'PING') {
         sendJson(ws, { bcafe: true, type: 'PONG' });
-        return;
-      }
-
-      if (msg.type === 'VOICE_CHUNK') {
-        for (const client of webClients) {
-          if (client !== ws && client.readyState === 1) {
-            try {
-              client.send(rawStr);
-            } catch (e) {}
-          }
-        }
         return;
       }
 
@@ -245,17 +329,52 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    if (msg.header || msg.body) {
+    // Verified Minecraft Bedrock packet
+    if (msg.header && (msg.header.messagePurpose || msg.header.eventName)) {
       ws.isBrowser = false;
       webClients.delete(ws);
+
+      const isNewMcSocket = state.mcSocket !== ws;
       state.mcSocket = ws;
       state.lastMcPacketAt = Date.now();
 
-      const reqId = msg.header && msg.header.requestId;
-      const meta = reqId ? pendingQueries.get(reqId) : null;
-      if (reqId) pendingQueries.delete(reqId);
+      if (isNewMcSocket) {
+        sendMcSubscribe(ws, 'PlayerTransform');
+        sendMcSubscribe(ws, 'PlayerTravelled');
+        sendRawMcCommand(ws, 'list', { kind: 'list' });
+      }
 
       const body = msg.body || {};
+
+      // Handle real-time movement events from PlayerTransform / PlayerTravelled
+      if (msg.header.messagePurpose === 'event' && body.player && body.player.name) {
+        const pName = body.player.name.trim();
+        if (pName) {
+          ensurePlayerEntry(pName);
+          if (body.player.position) {
+            const px = Number(body.player.position.x);
+            const py = Number(body.player.position.y);
+            const pz = Number(body.player.position.z);
+            if (Number.isFinite(px)) state.worldPlayers[pName].x = px;
+            if (Number.isFinite(py)) state.worldPlayers[pName].y = py;
+            if (Number.isFinite(pz)) state.worldPlayers[pName].z = pz;
+          }
+          if (body.player.yRot !== undefined && Number.isFinite(Number(body.player.yRot))) {
+            state.worldPlayers[pName].yaw = Number(body.player.yRot);
+          }
+          broadcastToBrowsers();
+        }
+        return;
+      }
+
+      const reqId = msg.header.requestId;
+      const meta =
+        inFlightRequest && inFlightRequest.requestId === reqId
+          ? inFlightRequest
+          : null;
+      if (meta) {
+        inFlightRequest = null;
+      }
 
       if (
         (meta && meta.kind === 'list') ||
@@ -309,21 +428,22 @@ wss.on('connection', (ws, req) => {
               : body.details;
           const target = Array.isArray(parsed) ? parsed[0] : parsed;
           if (target && target.position && state.worldPlayers[meta.playerName]) {
-            state.worldPlayers[meta.playerName].x =
-              Number(target.position.x) || 0;
-            state.worldPlayers[meta.playerName].y =
-              Number(target.position.y) || 64;
-            state.worldPlayers[meta.playerName].z =
-              Number(target.position.z) || 0;
-            if (target.yRot !== undefined) {
-              state.worldPlayers[meta.playerName].yaw =
-                Number(target.yRot) || 0;
+            const px = Number(target.position.x);
+            const py = Number(target.position.y);
+            const pz = Number(target.position.z);
+            if (Number.isFinite(px)) state.worldPlayers[meta.playerName].x = px;
+            if (Number.isFinite(py)) state.worldPlayers[meta.playerName].y = py;
+            if (Number.isFinite(pz)) state.worldPlayers[meta.playerName].z = pz;
+            if (target.yRot !== undefined && Number.isFinite(Number(target.yRot))) {
+              state.worldPlayers[meta.playerName].yaw = Number(target.yRot);
             }
           }
         } catch (e) {}
       }
 
       broadcastToBrowsers();
+      // Schedule the next single command only after Minecraft finishes answering this one
+      scheduleNextMcPoll(250);
     }
   });
 
@@ -349,7 +469,11 @@ wss.on('connection', (ws, req) => {
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      pendingQueries.clear();
+      inFlightRequest = null;
+      if (nextPollTimer) {
+        clearTimeout(nextPollTimer);
+        nextPollTimer = null;
+      }
       broadcastToBrowsers();
     }
   };
@@ -358,59 +482,19 @@ wss.on('connection', (ws, req) => {
   ws.on('error', cleanup);
 });
 
-let pollTick = 0;
-let playerPollIndex = 0;
-
+// Watchdog: if polling ever pauses while Minecraft is connected, kick it gently
 setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of pendingQueries.entries()) {
-    if (now - v.ts > 3000) pendingQueries.delete(k);
+  if (isMcConnected() && !nextPollTimer) {
+    scheduleNextMcPoll(200);
   }
+}, 2000);
 
-  const ws = state.mcSocket;
-  if (!ws || ws.readyState !== 1) return;
-
-  pollTick++;
-
-  if (pollTick % 6 === 1) {
-    sendMcCommand(ws, 'list', { kind: 'list' });
-    return;
-  }
-
-  if (pollTick % 6 === 3) {
-    sendMcCommand(ws, 'testfor @a[m=spectator]', { kind: 'spec_all' });
-    return;
-  }
-
-  const names = Object.keys(state.worldPlayers);
-  if (names.length === 0) {
-    sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
-    return;
-  }
-
-  if (playerPollIndex >= names.length) {
-    playerPollIndex = 0;
-  }
-  const targetName = names[playerPollIndex++];
-  sendMcCommand(ws, `querytarget @a[name="${targetName}"]`, {
-    kind: 'pos',
-    playerName: targetName
-  });
-}, 400);
-
+// Keep browser sockets alive without sending raw ws.ping() frames to Minecraft
 setInterval(() => {
-  wss.clients.forEach((ws) => {
-    if (ws.readyState === 1) {
-      try {
-        ws.ping();
-      } catch (e) {}
-    }
-  });
-
   for (const client of webClients) {
     sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
   }
-}, 5000);
+}, 10000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bedrock Cafe listening on port ${PORT}`);
