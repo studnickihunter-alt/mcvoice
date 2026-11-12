@@ -16,7 +16,10 @@ primary_region = 'ord'
     hard_limit = 250
     soft_limit = 200
 
+  [http_service.http_options]
+    idle_timeout = 600
+
 [[vm]]
-  memory = '1gb'
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
