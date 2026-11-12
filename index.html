@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Bedrock Cafe — Proximity Voice Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -350,32 +351,10 @@
       location.pathname.toLowerCase().replace(/\/+$/, '') === '/host' ||
       new URLSearchParams(location.search).has('host');
 
-    const RTC_CONFIG = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun.cloudflare.com:3478' },
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject'
-        }
-      ]
-    };
-
     const state = {
       role: isHostRoute ? 'host' : null,
       myPlayerName: '',
+      myPeerId: null,
       muted: false,
       deafened: false,
       mcConnected: false,
@@ -387,7 +366,11 @@
       },
       worldPlayers: {},
       ws: null,
-      peers: new Map(),
+      peer: null,
+      mediaCalls: new Map(),
+      remoteAudioNodes: new Map(),
+      wsPlayHeads: new Map(),
+      wsPlayerGains: new Map(),
       localStream: null,
       audioCtx: null,
       pingTimer: null
@@ -444,13 +427,8 @@
       leaveBtn.classList.add('hidden');
     }
 
-    // Periodic HTTP health request so Fly Proxy never triggers idle autostop
-    setInterval(() => {
-      fetch('/healthz', { cache: 'no-store' }).catch(() => {});
-    }, 45000);
-
     function sendServer(obj) {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN && state.ws.bufferedAmount < 16384) {
         try {
           state.ws.send(JSON.stringify({ bcafe: true, ...obj }));
         } catch (e) {}
@@ -468,7 +446,7 @@
           sendServer({
             type: 'CLAIM_PLAYER',
             playerName: state.myPlayerName,
-            peerId: `rtc-${state.myPlayerName}`
+            peerId: state.myPeerId || `ws-${state.myPlayerName}`
           });
         }
         if (state.pingTimer) clearInterval(state.pingTimer);
@@ -484,8 +462,8 @@
 
           if (msg.type === 'PONG' || msg.type === 'KEEPALIVE') return;
 
-          if (msg.type === 'RTC_SIGNAL') {
-            handleRtcSignal(msg);
+          if (msg.type === 'VOICE_CHUNK') {
+            handleIncomingWsVoiceChunk(msg);
             return;
           }
 
@@ -505,7 +483,7 @@
             updateMcStatusUI(state.mcConnected);
             renderHostRoster();
             if (state.role === 'player') {
-              syncPeerConnections();
+              dialOtherLinkedPlayers();
               updateSpatialAudioForAllPeers();
             }
           }
@@ -514,7 +492,7 @@
 
       ws.onclose = () => {
         if (state.pingTimer) clearInterval(state.pingTimer);
-        setTimeout(connectWebSocket, 600);
+        setTimeout(connectWebSocket, 500);
       };
     }
 
@@ -727,14 +705,53 @@
       sendServer({
         type: 'CLAIM_PLAYER',
         playerName,
-        peerId: `rtc-${playerName}`
+        peerId: `ws-${playerName}`
       });
 
-      setupLocalMicMeter();
-      syncPeerConnections();
+      setupLocalMicAndRelay();
+      setupPlayerWebRTC(playerName);
     }
 
-    function setupLocalMicMeter() {
+    function floatTo16BitBase64(inputFloats, inSampleRate, outSampleRate) {
+      const ratio = inSampleRate / outSampleRate;
+      const outLength = Math.floor(inputFloats.length / ratio);
+      const bytes = new Uint8Array(outLength * 2);
+      const view = new DataView(bytes.buffer);
+      for (let i = 0; i < outLength; i++) {
+        const pos = i * ratio;
+        const idx = Math.floor(pos);
+        const frac = pos - idx;
+        const s0 = inputFloats[idx] || 0;
+        const s1 = inputFloats[Math.min(inputFloats.length - 1, idx + 1)] || 0;
+        const sample = s0 + frac * (s1 - s0);
+        const clamped = Math.max(-1, Math.min(1, sample));
+        const val = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+        view.setInt16(i * 2, val, true);
+      }
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToFloat32(b64) {
+      const binary = atob(b64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const view = new DataView(bytes.buffer);
+      const sampleCount = Math.floor(len / 2);
+      const floats = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i++) {
+        floats[i] = view.getInt16(i * 2, true) / 32768.0;
+      }
+      return floats;
+    }
+
+    function setupLocalMicAndRelay() {
       state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (state.audioCtx.state === 'suspended') {
         state.audioCtx.resume();
@@ -744,6 +761,41 @@
       const analyser = state.audioCtx.createAnalyser();
       analyser.fftSize = 256;
       source.connect(analyser);
+
+      const processor = state.audioCtx.createScriptProcessor(4096, 1, 1);
+      const zeroGain = state.audioCtx.createGain();
+      zeroGain.gain.value = 0;
+      source.connect(processor);
+      processor.connect(zeroGain);
+      zeroGain.connect(state.audioCtx.destination);
+
+      let hangFrames = 0;
+      processor.onaudioprocess = (e) => {
+        if (state.role !== 'player' || state.muted || state.deafened) return;
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN || state.ws.bufferedAmount > 8192) return;
+
+        const input = e.inputBuffer.getChannelData(0);
+        let sumSq = 0;
+        for (let i = 0; i < input.length; i++) {
+          sumSq += input[i] * input[i];
+        }
+        const rms = Math.sqrt(sumSq / input.length);
+        if (rms > 0.005) {
+          hangFrames = 5;
+        } else if (hangFrames > 0) {
+          hangFrames--;
+        } else {
+          return;
+        }
+
+        const b64 = floatTo16BitBase64(input, state.audioCtx.sampleRate, 16000);
+        sendServer({
+          type: 'VOICE_CHUNK',
+          from: state.myPlayerName,
+          sr: 16000,
+          d: b64
+        });
+      };
 
       const data = new Uint8Array(analyser.frequencyBinCount);
       let lastBroadcastSpeaking = false;
@@ -773,195 +825,6 @@
       tick();
     }
 
-    function sendPlayerMicState(speaking = false) {
-      if (state.role !== 'player') return;
-      sendServer({
-        type: 'PLAYER_MIC_STATE',
-        playerName: state.myPlayerName,
-        muted: state.muted,
-        deafened: state.deafened,
-        speaking
-      });
-    }
-
-    function getOrCreatePeer(otherName, isInitiator) {
-      let entry = state.peers.get(otherName);
-      if (entry && entry.pc && entry.pc.connectionState !== 'closed' && entry.pc.connectionState !== 'failed') {
-        return entry;
-      }
-      if (entry) {
-        closePeer(otherName);
-      }
-
-      const pc = new RTCPeerConnection(RTC_CONFIG);
-      entry = {
-        pc,
-        audioEl: null,
-        candidateQueue: [],
-        makingOffer: false
-      };
-      state.peers.set(otherName, entry);
-
-      if (state.localStream) {
-        state.localStream.getTracks().forEach((track) => {
-          pc.addTrack(track, state.localStream);
-        });
-      }
-
-      pc.onicecandidate = (ev) => {
-        if (ev.candidate) {
-          sendServer({
-            type: 'RTC_SIGNAL',
-            from: state.myPlayerName,
-            to: otherName,
-            candidate: ev.candidate
-          });
-        }
-      };
-
-      pc.ontrack = (ev) => {
-        const remoteStream = ev.streams && ev.streams[0];
-        if (!remoteStream) return;
-        if (!entry.audioEl) {
-          const audioEl = document.createElement('audio');
-          audioEl.autoplay = true;
-          audioEl.playsInline = true;
-          audioEl.muted = false;
-          document.getElementById('remoteAudioContainer').appendChild(audioEl);
-          entry.audioEl = audioEl;
-        }
-        entry.audioEl.srcObject = remoteStream;
-        entry.audioEl.play().catch(() => {});
-        updateSpatialAudioForAllPeers();
-      };
-
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          closePeer(otherName);
-        }
-      };
-
-      if (isInitiator) {
-        entry.makingOffer = true;
-        pc.createOffer()
-          .then((offer) => pc.setLocalDescription(offer))
-          .then(() => {
-            sendServer({
-              type: 'RTC_SIGNAL',
-              from: state.myPlayerName,
-              to: otherName,
-              sdp: pc.localDescription
-            });
-          })
-          .catch(() => {})
-          .finally(() => {
-            entry.makingOffer = false;
-          });
-      }
-
-      return entry;
-    }
-
-    async function handleRtcSignal(msg) {
-      if (state.role !== 'player' || !state.myPlayerName) return;
-      if (msg.to !== state.myPlayerName || !msg.from) return;
-
-      const otherName = msg.from;
-      const entry = getOrCreatePeer(otherName, false);
-      const pc = entry.pc;
-
-      try {
-        if (msg.sdp) {
-          const desc = new RTCSessionDescription(msg.sdp);
-          if (desc.type === 'offer') {
-            await pc.setRemoteDescription(desc);
-            while (entry.candidateQueue.length > 0) {
-              const c = entry.candidateQueue.shift();
-              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
-            }
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendServer({
-              type: 'RTC_SIGNAL',
-              from: state.myPlayerName,
-              to: otherName,
-              sdp: pc.localDescription
-            });
-          } else if (desc.type === 'answer' && pc.signalingState === 'have-local-offer') {
-            await pc.setRemoteDescription(desc);
-            while (entry.candidateQueue.length > 0) {
-              const c = entry.candidateQueue.shift();
-              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
-            }
-          }
-        } else if (msg.candidate) {
-          if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)).catch(() => {});
-          } else {
-            entry.candidateQueue.push(msg.candidate);
-          }
-        }
-      } catch (e) {}
-    }
-
-    function closePeer(otherName) {
-      const entry = state.peers.get(otherName);
-      if (!entry) return;
-      try {
-        if (entry.audioEl) {
-          entry.audioEl.pause();
-          entry.audioEl.srcObject = null;
-          entry.audioEl.remove();
-        }
-        if (entry.pc) {
-          entry.pc.close();
-        }
-      } catch (e) {}
-      state.peers.delete(otherName);
-    }
-
-    function syncPeerConnections() {
-      if (state.role !== 'player' || !state.myPlayerName) return;
-
-      const linkedOtherNames = Object.keys(state.worldPlayers).filter((name) => {
-        if (name === state.myPlayerName) return false;
-        const p = state.worldPlayers[name];
-        return Boolean(p && (p.wsConnected || p.linkedPeerId));
-      });
-
-      const activeSet = new Set(linkedOtherNames);
-      for (const existingName of state.peers.keys()) {
-        if (!activeSet.has(existingName)) {
-          closePeer(existingName);
-        }
-      }
-
-      linkedOtherNames.forEach((otherName) => {
-        if (state.myPlayerName < otherName && !state.peers.has(otherName)) {
-          getOrCreatePeer(otherName, true);
-        }
-      });
-    }
-
-    setInterval(() => {
-      if (state.role === 'player' && state.myPlayerName) {
-        syncPeerConnections();
-      }
-    }, 4000);
-
-    function calculateProximityGain(distance, minRange, maxRange, curve) {
-      if (distance <= minRange) return 1.0;
-      if (distance >= maxRange) return 0.0;
-      const t = (distance - minRange) / Math.max(0.001, (maxRange - minRange));
-      if (curve === 'linear') {
-        return 1.0 - t;
-      } else if (curve === 'inverse') {
-        return Math.pow(1.0 - t, 2.2);
-      } else {
-        return 0.5 * (1 + Math.cos(Math.PI * t));
-      }
-    }
-
     function getGainForPlayerName(otherPlayerName) {
       if (state.deafened) return 0;
       const me = state.worldPlayers[state.myPlayerName];
@@ -989,21 +852,223 @@
       );
     }
 
+    function hasActiveWebRTCForPlayer(otherPlayerName) {
+      const other = state.worldPlayers[otherPlayerName];
+      if (!other || !other.linkedPeerId) return false;
+      const node = state.remoteAudioNodes.get(other.linkedPeerId);
+      return Boolean(node && node.hasStream && !node.audioEl.paused);
+    }
+
+    function handleIncomingWsVoiceChunk(msg) {
+      if (state.role !== 'player' || state.deafened) return;
+      if (!msg.from || msg.from === state.myPlayerName || !msg.d) return;
+      if (hasActiveWebRTCForPlayer(msg.from)) return;
+
+      const gainVal = getGainForPlayerName(msg.from);
+      if (gainVal <= 0.001) return;
+
+      if (!state.audioCtx) {
+        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (state.audioCtx.state === 'suspended') {
+        state.audioCtx.resume();
+      }
+
+      const floats = base64ToFloat32(msg.d);
+      if (floats.length === 0) return;
+
+      const sr = msg.sr || 16000;
+      const audioBuffer = state.audioCtx.createBuffer(1, floats.length, sr);
+      audioBuffer.getChannelData(0).set(floats);
+
+      // Reuse a single persistent GainNode per player so old audio nodes never accumulate in memory
+      let playerGain = state.wsPlayerGains.get(msg.from);
+      if (!playerGain) {
+        playerGain = state.audioCtx.createGain();
+        playerGain.connect(state.audioCtx.destination);
+        state.wsPlayerGains.set(msg.from, playerGain);
+      }
+      playerGain.gain.value = gainVal;
+
+      const src = state.audioCtx.createBufferSource();
+      src.buffer = audioBuffer;
+      src.connect(playerGain);
+
+      // Immediately delete and disconnect the buffer node as soon as the chunk finishes playing
+      src.onended = () => {
+        try {
+          src.disconnect();
+          src.buffer = null;
+        } catch (e) {}
+      };
+
+      const now = state.audioCtx.currentTime;
+      let nextTime = state.wsPlayHeads.get(msg.from) || 0;
+      if (nextTime < now || nextTime > now + 0.3) {
+        nextTime = now + 0.03;
+      }
+      src.start(nextTime);
+      state.wsPlayHeads.set(msg.from, nextTime + audioBuffer.duration);
+    }
+
+    function sendPlayerMicState(speaking = false) {
+      if (state.role !== 'player') return;
+      sendServer({
+        type: 'PLAYER_MIC_STATE',
+        playerName: state.myPlayerName,
+        muted: state.muted,
+        deafened: state.deafened,
+        speaking
+      });
+    }
+
+    function setupPlayerWebRTC(playerName) {
+      if (state.peer) state.peer.destroy();
+      state.peer = new Peer({
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            {
+              urls: 'turn:openrelay.metered.ca:80',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+              username: 'openrelayproject',
+              credential: 'openrelayproject'
+            }
+          ]
+        }
+      });
+
+      state.peer.on('open', (myPeerId) => {
+        state.myPeerId = myPeerId;
+        sendServer({
+          type: 'CLAIM_PLAYER',
+          playerName,
+          peerId: myPeerId
+        });
+      });
+
+      state.peer.on('disconnected', () => {
+        try { state.peer.reconnect(); } catch (e) {}
+      });
+
+      state.peer.on('call', (call) => {
+        call.answer(state.localStream);
+        handleIncomingMediaCall(call);
+      });
+    }
+
+    function dialOtherLinkedPlayers() {
+      if (state.role !== 'player' || !state.peer || !state.myPeerId) return;
+      Object.values(state.worldPlayers).forEach(p => {
+        if (!p.linkedPeerId || p.linkedPeerId.startsWith('ws-') || p.linkedPeerId === state.myPeerId) return;
+        const existingNode = state.remoteAudioNodes.get(p.linkedPeerId);
+        if (existingNode && existingNode.hasStream) return;
+
+        if (!state.mediaCalls.has(p.linkedPeerId) && state.myPeerId < p.linkedPeerId) {
+          const call = state.peer.call(p.linkedPeerId, state.localStream, {
+            metadata: { playerName: state.myPlayerName }
+          });
+          handleIncomingMediaCall(call);
+        }
+      });
+    }
+
+    function handleIncomingMediaCall(call) {
+      if (!call) return;
+      state.mediaCalls.set(call.peer, call);
+      call.on('stream', (remoteStream) => {
+        setupRemoteSpatialNode(call.peer, remoteStream);
+      });
+      call.on('close', () => {
+        cleanupRemoteNode(call.peer);
+      });
+      call.on('error', () => {
+        cleanupRemoteNode(call.peer);
+      });
+    }
+
+    function setupRemoteSpatialNode(peerId, remoteStream) {
+      let existing = state.remoteAudioNodes.get(peerId);
+      if (existing && existing.hasStream) return;
+
+      const audioEl = document.createElement('audio');
+      audioEl.srcObject = remoteStream;
+      audioEl.muted = false;
+      audioEl.autoplay = true;
+      audioEl.playsInline = true;
+      audioEl.volume = 1.0;
+      document.getElementById('remoteAudioContainer').appendChild(audioEl);
+      audioEl.play().catch(() => {});
+
+      state.remoteAudioNodes.set(peerId, {
+        audioEl,
+        hasStream: true
+      });
+      updateSpatialAudioForAllPeers();
+    }
+
+    function cleanupRemoteNode(peerId) {
+      const node = state.remoteAudioNodes.get(peerId);
+      if (node) {
+        try {
+          node.audioEl.pause();
+          node.audioEl.srcObject = null;
+          node.audioEl.remove();
+        } catch (e) {}
+        state.remoteAudioNodes.delete(peerId);
+      }
+      state.mediaCalls.delete(peerId);
+    }
+
+    function calculateProximityGain(distance, minRange, maxRange, curve) {
+      if (distance <= minRange) return 1.0;
+      if (distance >= maxRange) return 0.0;
+      const t = (distance - minRange) / Math.max(0.001, (maxRange - minRange));
+      if (curve === 'linear') {
+        return 1.0 - t;
+      } else if (curve === 'inverse') {
+        return Math.pow(1.0 - t, 2.2);
+      } else {
+        return 0.5 * (1 + Math.cos(Math.PI * t));
+      }
+    }
+
     function updateSpatialAudioForAllPeers() {
       if (state.role !== 'player') return;
 
-      for (const [otherName, entry] of state.peers.entries()) {
-        if (!entry || !entry.audioEl) continue;
+      for (const [otherName, gainNode] of state.wsPlayerGains.entries()) {
+        gainNode.gain.value = state.deafened ? 0 : getGainForPlayerName(otherName);
+      }
+
+      for (const [peerId, node] of state.remoteAudioNodes.entries()) {
+        if (!node || !node.audioEl) continue;
 
         if (state.deafened) {
-          entry.audioEl.volume = 0;
+          node.audioEl.volume = 0;
           continue;
         }
 
-        const targetGain = getGainForPlayerName(otherName);
-        entry.audioEl.volume = Math.max(0, Math.min(1, targetGain));
-        if (entry.audioEl.paused) {
-          entry.audioEl.play().catch(() => {});
+        const other = Object.values(state.worldPlayers).find(p => p.linkedPeerId === peerId);
+        if (!other) {
+          node.audioEl.volume = 1.0;
+          continue;
+        }
+
+        const targetGain = getGainForPlayerName(other.name);
+        node.audioEl.volume = Math.max(0, Math.min(1, targetGain));
+        if (node.audioEl.paused) {
+          node.audioEl.play().catch(() => {});
         }
       }
     }
@@ -1012,9 +1077,9 @@
       if (state.audioCtx && state.audioCtx.state === 'suspended') {
         state.audioCtx.resume();
       }
-      for (const entry of state.peers.values()) {
-        if (entry.audioEl && entry.audioEl.paused) {
-          entry.audioEl.play().catch(() => {});
+      for (const node of state.remoteAudioNodes.values()) {
+        if (node.audioEl && node.audioEl.paused) {
+          node.audioEl.play().catch(() => {});
         }
       }
     });
