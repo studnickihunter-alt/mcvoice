@@ -1,363 +1,403 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Bedrock Cafe — Proximity Voice Chat</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bedrock Cafe — Persistent Proximity Voice Chat</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: {
-            serif: ['Fraunces', 'Georgia', 'serif'],
-            sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+            sans: ['Inter', 'sans-serif'],
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
             navy: {
-              950: '#100D1E',
-              900: '#161326',
-              800: '#211C38',
-              700: '#2C254A',
-              600: '#3D3463'
-            },
-            cream: {
-              100: '#F6F2EA',
-              200: '#E8DFD1',
-              300: '#C4B7CB'
-            },
-            berry: {
-              400: '#B69DF8',
-              500: '#9B7EDE',
-              600: '#7E5EC4'
+              950: '#0a0e17',
+              900: '#111827',
+              800: '#1e293b',
+              700: '#334155',
             },
             sage: {
-              400: '#84B59F',
-              500: '#689F87',
-              600: '#4F826C'
-            },
-            espresso: {
-              400: '#E2A86F',
-              500: '#C88D55'
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
             },
             rosewood: {
-              400: '#E07A7A',
-              500: '#C95B5B'
+              300: '#fda4af',
+              400: '#fb7185',
+              500: '#f43f5e',
             }
           }
         }
       }
-    }
+    };
   </script>
   <style>
     body {
-      background-color: #161326;
-      color: #F6F2EA;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      overflow-x: hidden;
-      background-image:
-        radial-gradient(circle at 15% 15%, rgba(155, 126, 222, 0.13) 0%, transparent 45%),
-        radial-gradient(circle at 85% 80%, rgba(132, 181, 159, 0.11) 0%, transparent 45%),
-        radial-gradient(circle at 50% 50%, rgba(226, 168, 111, 0.05) 0%, transparent 60%);
+      background-color: #0a0e17;
+      color: #f1f5f9;
+      font-family: 'Inter', sans-serif;
     }
-    .cafe-card {
-      background: rgba(33, 28, 56, 0.84);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(196, 183, 203, 0.15);
-      box-shadow: 0 20px 50px rgba(10, 8, 20, 0.55);
-    }
-    .cafe-card-subtle {
-      background: rgba(22, 19, 38, 0.65);
-      border: 1px solid rgba(196, 183, 203, 0.12);
-    }
-    input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
-      background: #161326;
-      height: 8px;
-      border-radius: 999px;
-      border: 1px solid rgba(196, 183, 203, 0.2);
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #84B59F;
-      cursor: pointer;
-      border: 3px solid #F6F2EA;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    .glass-card {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col selection:bg-berry-500 selection:text-navy-950">
+<body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500/30 selection:text-emerald-200">
 
-  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-25">
-    <svg class="absolute -top-12 -left-12 w-80 h-80 text-sage-500/20" viewBox="0 0 200 200" fill="currentColor">
-      <path d="M40,120 C20,80 50,20 110,20 C110,80 80,120 40,120 Z" />
-      <path d="M90,160 C70,120 100,60 160,60 C160,120 130,160 90,160 Z" opacity="0.6" />
-    </svg>
-    <svg class="absolute -bottom-16 -right-12 w-96 h-96 text-berry-500/20" viewBox="0 0 200 200" fill="currentColor">
-      <path d="M160,80 C180,120 150,180 90,180 C90,120 120,80 160,80 Z" />
-      <path d="M110,40 C130,80 100,140 40,140 C40,80 70,40 110,40 Z" opacity="0.5" />
-    </svg>
-  </div>
-
-  <header class="relative z-10 border-b border-cream-300/10 bg-navy-900/75 backdrop-blur-md">
-    <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3.5">
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-berry-500/25 to-sage-400/25 border border-cream-300/20 flex items-center justify-center shadow-inner">
-          <svg class="w-5 h-5 text-espresso-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 1v3M10 1v3M14 1v3"/>
-          </svg>
+  <!-- Top Header Bar -->
+  <header class="w-full border-b border-slate-800/80 bg-navy-950/90 sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold font-mono text-sm">
+          BC
         </div>
         <div>
-          <span class="font-serif text-lg font-bold tracking-tight text-cream-100 block leading-none">Bedrock Cafe</span>
-          <span class="text-xs text-cream-300">Proximity Voice Chat</span>
+          <div class="flex items-center gap-2">
+            <h1 class="font-semibold text-slate-100 text-sm sm:text-base tracking-tight">Bedrock Cafe</h1>
+            <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Always-On v6.1</span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">Persistent Minecraft Bedrock Proximity Voice &amp; Spectator Isolation</p>
         </div>
       </div>
 
-      <div id="topStatusArea" class="hidden items-center gap-3">
-        <span id="roleBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-berry-500/20 text-berry-400 border border-berry-400/30">
-          Player
-        </span>
-        <button id="leaveBtn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rosewood-500/15 hover:bg-rosewood-500/25 text-rosewood-400 border border-rosewood-400/30 transition">
-          Leave Chat
+      <!-- Active Session Status Pill -->
+      <div id="topStatusArea" class="hidden items-center gap-2 sm:gap-3">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
+          <span id="netHeartbeatDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="roleBadge" class="font-mono text-[11px] text-slate-300">Connected</span>
+        </div>
+        <button id="leaveSessionBtn" type="button" class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-medium transition">
+          Leave
         </button>
       </div>
     </div>
   </header>
 
-  <main id="lobbyScreen" class="relative z-10 flex-1 flex items-center justify-center p-5">
-    <div class="max-w-md w-full">
-      <div class="cafe-card rounded-3xl p-7 flex flex-col justify-between relative overflow-hidden">
-        <div class="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-sage-400/10 blur-xl pointer-events-none"></div>
+  <!-- Toast Notification Banner -->
+  <div id="toastBanner" class="fixed bottom-5 right-5 z-50 hidden max-w-sm px-4 py-3 rounded-2xl bg-slate-900/95 border border-emerald-500/40 text-slate-100 text-xs shadow-2xl flex items-center gap-2.5">
+    <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+    <span id="toastMessage">Copied to clipboard</span>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 flex flex-col justify-center">
+
+    <!-- 1. LOBBY SCREEN -->
+    <section id="lobbyScreen" class="w-full max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Join as Player Card -->
+      <div class="glass-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-xl">
         <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sage-400/15 border border-sage-400/30 text-sage-400 text-xs font-semibold mb-4">
-            <span>🌿</span> Proximity Voice Chat
+          <div class="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full mb-4">
+            Player Voice Client
           </div>
-          <h2 class="font-serif text-2xl font-bold text-cream-100 mb-2">Join Voice Chat</h2>
-          <p class="text-xs text-cream-300 leading-relaxed mb-6">
-            Pick your Minecraft character from the live list of players currently in the world.
+          <h2 class="text-xl font-bold text-white mb-1.5">Join Voice Table</h2>
+          <p class="text-xs text-slate-400 leading-relaxed mb-6">
+            Enter your Table Code and exact Minecraft Bedrock Gamertag. Your connection stays locked in until you close this tab.
           </p>
 
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block text-xs font-semibold text-cream-200">Select Your Minecraft Character</label>
-              <span id="rosterFetchStatus" class="text-[11px] text-cream-300/70 italic">Checking world...</span>
+          <div class="space-y-4">
+            <div>
+              <label for="joinRoomInput" class="block text-xs font-medium text-slate-300 mb-1.5">Table / Room Code</label>
+              <input id="joinRoomInput" type="text" placeholder="e.g. MOSS42" maxlength="12"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-white font-mono text-sm uppercase focus:outline-none focus:border-emerald-500 transition" />
             </div>
-            <div class="relative">
-              <select id="joinPlayerSelect" disabled
-                class="w-full px-4 py-3 rounded-2xl bg-navy-900/90 border border-cream-300/20 text-cream-100 text-sm focus:outline-none focus:border-sage-400 transition appearance-none disabled:opacity-50 cursor-pointer">
-                <option value="">Waiting for players in Minecraft world...</option>
-              </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-cream-300">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
+            <div>
+              <label for="joinNameInput" class="block text-xs font-medium text-slate-300 mb-1.5">Minecraft Gamertag (Spaces Allowed)</label>
+              <input id="joinNameInput" type="text" placeholder="e.g. Hudenrilie Game" maxlength="32"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80 text-white text-sm focus:outline-none focus:border-emerald-500 transition" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-800/80">
+          <div id="lobbyErrorMsg" class="hidden text-xs text-rose-400 mb-3 font-medium"></div>
+          <button id="joinPlayerBtn" type="button"
+            class="w-full py-3 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm shadow-lg shadow-emerald-500/15 transition">
+            Connect Microphone &amp; Join
+          </button>
+        </div>
+      </div>
+
+      <!-- Create Host Controller Card -->
+      <div class="glass-card rounded-3xl p-6 sm:p-7 flex flex-col justify-between shadow-xl">
+        <div>
+          <div class="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-full mb-4">
+            World Host Controller
+          </div>
+          <h2 class="text-xl font-bold text-white mb-1.5">Host a World Bridge</h2>
+          <p class="text-xs text-slate-400 leading-relaxed mb-5">
+            Creates a dedicated room controller that generates your Minecraft Bedrock <code class="text-sky-300 font-mono">/connect</code> command and manages voice range &amp; spectator rules.
+          </p>
+
+          <div class="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-2.5 text-xs text-slate-300">
+            <div class="flex items-start gap-2">
+              <span class="text-emerald-400 font-mono font-bold">01.</span>
+              <span>Click <strong>Start Host Controller</strong> below to get your <code class="font-mono text-slate-200">/connect</code> command.</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-emerald-400 font-mono font-bold">02.</span>
+              <span>Paste the <code class="font-mono text-slate-200">/connect</code> command inside your Minecraft Bedrock world.</span>
+            </div>
+            <div class="flex items-start gap-2">
+              <span class="text-emerald-400 font-mono font-bold">03.</span>
+              <span>Share the invite link with friends (and open it yourself in a second tab to talk as a player).</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-800/80">
+          <button id="createHostBtn" type="button"
+            class="w-full py-3 px-4 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-sm shadow-lg shadow-sky-500/15 transition">
+            Start Host Controller
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. HOST CONTROLLER SCREEN -->
+    <section id="hostScreen" class="hidden w-full space-y-6">
+      <!-- Top Row: Room Code, Share Link & Minecraft /connect Command -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Room & Invite Link Card -->
+        <div class="lg:col-span-5 glass-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-400">Table Room Code</span>
+              <span id="hostRelayStatusBadge" class="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Relay Active
+              </span>
+            </div>
+            <div class="flex items-baseline justify-between gap-3 mb-4">
+              <div id="hostRoomCodeDisplay" class="text-3xl sm:text-4xl font-bold font-mono tracking-wider text-white">MOSS42</div>
+              <button id="copyInviteLinkBtn" type="button"
+                class="px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 text-xs font-medium transition">
+                Copy Player Invite Link
+              </button>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800/80">
+            <div class="text-[11px] text-slate-400 mb-1">Shareable Player URL:</div>
+            <div id="hostInviteUrlText" class="font-mono text-xs text-slate-200 truncate bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800"></div>
+          </div>
+        </div>
+
+        <!-- Minecraft Bedrock /connect Command Card -->
+        <div class="lg:col-span-7 glass-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-mono uppercase tracking-wider text-sky-400">Minecraft Bedrock WebSocket Command</span>
+              <div class="flex items-center gap-2">
+                <span id="mcStatusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="mcStatusText" class="text-xs font-mono text-amber-300">Waiting for /connect in world...</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-cream-300/10">
-          <button id="joinTableBtn" disabled
-            class="w-full py-3.5 px-5 rounded-2xl bg-sage-500 hover:bg-sage-400 disabled:bg-navy-700 disabled:text-cream-300/40 disabled:cursor-not-allowed text-navy-950 font-bold text-sm shadow-lg shadow-sage-500/20 transition flex items-center justify-center gap-2">
-            <span>Join Voice Chat</span>
-          </button>
-          <p id="joinErrorMsg" class="text-xs text-rosewood-400 mt-2.5 text-center hidden"></p>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <main id="hostScreen" class="relative z-10 flex-1 hidden max-w-5xl w-full mx-auto p-5 space-y-6">
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <div class="cafe-card rounded-3xl p-5 flex flex-col justify-between">
-        <div>
-          <span class="text-xs text-cream-300 uppercase tracking-wider font-semibold">Invite Friends</span>
-          <h2 class="font-serif text-2xl font-bold text-espresso-400 mt-1">Player Join Link</h2>
-          <p class="text-xs text-cream-300 mt-1">Send this main website link to players so they can pick their character and join voice chat.</p>
-        </div>
-        <button id="copyInviteLinkBtn"
-          class="mt-4 w-full py-2.5 px-4 rounded-xl bg-berry-500/20 hover:bg-berry-500/30 border border-berry-400/40 text-cream-100 text-xs font-semibold transition flex items-center justify-center gap-2">
-          <span id="copyInviteText">Copy Player Website Link</span>
-        </button>
-      </div>
-
-      <div class="cafe-card rounded-3xl p-5 md:col-span-2 flex flex-col justify-between">
-        <div>
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-            <span class="text-xs text-cream-300 uppercase tracking-wider font-semibold">Link Minecraft World</span>
-            <span id="mcWorldBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-espresso-400/15 text-espresso-400 border border-espresso-400/30">
-              <span id="mcWorldDot" class="w-2 h-2 rounded-full bg-espresso-400 animate-pulse"></span>
-              <span id="mcWorldStatusText">Waiting for /connect in Minecraft</span>
-            </span>
-          </div>
-
-          <p class="text-xs text-cream-300 mb-3">
-            Paste this command in your Minecraft Bedrock world chat to link your world:
-          </p>
-
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div class="flex-1 px-4 py-2.5 rounded-xl bg-navy-950/90 border border-cream-300/15 font-mono text-xs text-sage-400 select-all overflow-x-auto whitespace-nowrap" id="mcConnectCommand">
-              /connect ...
+            <p class="text-xs text-slate-400 mb-3">
+              In Minecraft Bedrock Settings &rarr; Creator, turn <strong>WebSockets Enabled ON</strong> and <strong>Require Encrypted WebSockets OFF</strong>, then run:
+            </p>
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <code id="mcConnectCommand" class="flex-1 font-mono text-xs text-emerald-300 bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-800 overflow-x-auto whitespace-nowrap">
+                /connect ...
+              </code>
+              <button id="copyMcCmdBtn" type="button"
+                class="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs shrink-0 transition">
+                Copy Command
+              </button>
             </div>
-            <button id="copyMcCmdBtn"
-              class="px-4 py-2.5 rounded-xl bg-sage-500 hover:bg-sage-400 text-navy-950 font-bold text-xs transition shrink-0">
-              Copy Command
-            </button>
+          </div>
+
+          <div class="mt-3 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <span>Backup Cloud Command (if needed): <code id="mcBackupCloudCmd" class="font-mono text-slate-300"></code></span>
+            <button id="copyBackupCmdBtn" type="button" class="text-sky-400 hover:underline font-medium">Copy Cloud Backup</button>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Bottom Row: Host-Only Proximity Voice Rules & Connected World Roster -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Host-Only Rules Panel -->
+        <div class="lg:col-span-5 glass-card rounded-3xl p-5 sm:p-6 space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="text-sm font-semibold text-white">Host-Only Proximity Rules</h3>
+              <p class="text-[11px] text-slate-400">Locked for players — syncs live to all connected browsers</p>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">HOST ADMIN</span>
+          </div>
 
-      <div class="lg:col-span-5 cafe-card rounded-3xl p-6 space-y-5">
-        <div class="border-b border-cream-300/10 pb-3">
-          <h3 class="font-serif text-xl font-bold text-cream-100">Voice Chat Rules</h3>
-          <p class="text-xs text-cream-300">Changes sync immediately to all connected players.</p>
-        </div>
-
-        <div class="space-y-4">
+          <!-- Max Range Slider -->
           <div>
             <div class="flex justify-between text-xs mb-1.5">
-              <span class="font-semibold text-cream-200">Maximum Hearing Distance</span>
-              <span id="maxRangeLabel" class="font-mono text-sage-400 font-semibold">32 blocks</span>
+              <label for="maxRangeInput" class="text-slate-300 font-medium">Max Hearing Distance</label>
+              <span id="maxRangeLabel" class="font-mono text-emerald-400">32 blocks</span>
             </div>
-            <input id="maxRangeSlider" type="range" min="8" max="120" value="32" class="w-full" />
+            <input id="maxRangeInput" type="range" min="8" max="120" step="1" value="32"
+              class="w-full accent-emerald-500 cursor-pointer" />
           </div>
 
+          <!-- Min Full-Volume Range Slider -->
           <div>
             <div class="flex justify-between text-xs mb-1.5">
-              <span class="font-semibold text-cream-200">Full Volume Radius</span>
-              <span id="minRangeLabel" class="font-mono text-berry-400 font-semibold">5 blocks</span>
+              <label for="minRangeInput" class="text-slate-300 font-medium">Full Volume Radius</label>
+              <span id="minRangeLabel" class="font-mono text-emerald-400">5 blocks</span>
             </div>
-            <input id="minRangeSlider" type="range" min="1" max="30" value="5" class="w-full" />
+            <input id="minRangeInput" type="range" min="1" max="30" step="1" value="5"
+              class="w-full accent-emerald-500 cursor-pointer" />
           </div>
 
+          <!-- Fade Curve Selector -->
           <div>
-            <label class="block text-xs font-semibold text-cream-200 mb-1.5">Voice Fade Curve</label>
+            <label for="rolloffSelect" class="block text-xs text-slate-300 font-medium mb-1.5">Distance Voice Fade Curve</label>
             <select id="rolloffSelect"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-navy-900 border border-cream-300/20 text-xs text-cream-100 focus:outline-none focus:border-berry-400">
-              <option value="smooth">Smooth Cafe Fade (Natural S-Curve)</option>
-              <option value="linear">Linear Distance Dropoff</option>
-              <option value="inverse">Realistic Acoustic Inverse</option>
+              class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+              <option value="smooth">Smooth S-Curve (Cosine Taper)</option>
+              <option value="linear">Linear Distance Fade</option>
+              <option value="inverse">Realistic Inverse Steep Dropoff</option>
             </select>
           </div>
 
-          <div class="pt-2 border-t border-cream-300/10 flex items-center justify-between gap-4">
+          <!-- Spectator Isolation Toggle -->
+          <div class="pt-2 border-t border-slate-800 flex items-center justify-between gap-3">
             <div>
-              <span class="block text-xs font-semibold text-cream-200">Separate Spectator Chat</span>
-              <span class="text-[11px] text-cream-300/80">Spectators hear each other globally while Alive players cannot hear them.</span>
+              <div class="text-xs font-medium text-slate-200">Separate Spectator VC</div>
+              <div class="text-[11px] text-slate-400">Spectators hear everyone; Alive players only hear nearby Alive players</div>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer shrink-0">
-              <input id="spectatorIsolationToggle" type="checkbox" checked class="sr-only peer">
-              <div class="w-11 h-6 bg-navy-950 rounded-full peer peer-checked:bg-sage-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-cream-100 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div class="lg:col-span-7 cafe-card rounded-3xl p-6 flex flex-col justify-between">
-        <div>
-          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-cream-300/10 pb-3 mb-4">
-            <div>
-              <h3 class="font-serif text-xl font-bold text-cream-100">Players in World</h3>
-              <p class="text-xs text-cream-300">Live roster from your linked Minecraft world.</p>
-            </div>
-            <span id="hostPlayerCountBadge" class="px-3 py-1 rounded-full text-xs font-mono bg-navy-900 text-cream-200 border border-cream-300/15">
-              0 In World · 0 Linked
-            </span>
-          </div>
-
-          <div id="hostRosterList" class="space-y-2.5 max-h-80 overflow-y-auto pr-1"></div>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-cream-300/10">
-          <label class="block text-xs font-semibold text-cream-200 mb-1.5">Add World Player Name Manually (Optional)</label>
-          <div class="flex gap-2">
-            <input id="manualPlayerInput" type="text" placeholder="Exact Gamertag (e.g. Hudenrilie Game)"
-              class="flex-1 px-3.5 py-2 rounded-xl bg-navy-900 border border-cream-300/20 text-xs text-cream-100 placeholder-cream-300/40 focus:outline-none focus:border-berry-400" />
-            <button id="addManualPlayerBtn"
-              class="px-4 py-2 rounded-xl bg-berry-500/25 hover:bg-berry-500/35 border border-berry-400/30 text-cream-100 text-xs font-semibold transition">
-              + Add to World List
+            <button id="spectatorToggleBtn" type="button"
+              class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-medium transition">
+              ON
             </button>
           </div>
         </div>
-      </div>
 
-    </div>
+        <!-- World & Voice Roster Panel -->
+        <div class="lg:col-span-7 glass-card rounded-3xl p-5 sm:p-6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div>
+                <h3 class="text-sm font-semibold text-white">Live World &amp; Voice Roster</h3>
+                <p class="text-[11px] text-slate-400">Tracks players from Minecraft Bedrock &amp; WebRTC voice clients</p>
+              </div>
+              <span id="hostRosterCount" class="text-xs font-mono px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
+                0 Players
+              </span>
+            </div>
+
+            <div id="hostRosterList" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+            <span id="hostKeepAliveReadout">Keep-Alive: 12s Watchdog Active</span>
+            <button id="manualPollBtn" type="button" class="text-sky-400 hover:underline">Sync Positions Now</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. PLAYER SCREEN (Minimalist: Table #, Name, Mic Level, Mute & Deafen Only) -->
+    <section id="playerScreen" class="hidden w-full items-center justify-center py-6">
+      <div class="w-full max-w-md glass-card rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+        <!-- Table # & Connection Pill -->
+        <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+          <div>
+            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">Table Code</span>
+            <span id="playerTableCode" class="text-xl font-bold font-mono text-white tracking-wider">MOSS42</span>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 block">Voice Link</span>
+            <span id="playerConnectionPill" class="inline-flex items-center gap-1.5 text-xs font-mono text-emerald-400">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Locked In
+            </span>
+          </div>
+        </div>
+
+        <!-- Player Identity Card -->
+        <div class="flex items-center gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-4">
+          <div id="playerAvatarInitial" class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 font-bold text-lg font-mono shrink-0">
+            H
+          </div>
+          <div class="min-w-0 flex-1">
+            <div id="playerDisplayName" class="font-semibold text-white text-base truncate">Hudenrilie Game</div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="playerMicStatusText" class="font-mono text-[11px] text-sage-400">Active</span>
+              <span class="text-slate-600">&bull;</span>
+              <span id="playerChannelBadge" class="font-mono text-[11px] text-slate-400">Proximity VC</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Microphone Level Bar -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-medium">Mic Input Level</span>
+            <span id="playerMicPercent" class="font-mono text-[11px] text-slate-400">0%</span>
+          </div>
+          <div class="w-full h-2.5 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+            <div id="playerMicBar" class="h-full bg-emerald-400 transition-all duration-75" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Mute & Deafen Controls -->
+        <div class="grid grid-cols-2 gap-3 pt-2">
+          <button id="playerMuteBtn" type="button"
+            class="py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-800 border border-slate-700/80 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition">
+            <span id="muteBtnLabel">Mute</span>
+          </button>
+          <button id="playerDeafenBtn" type="button"
+            class="py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-800 border border-slate-700/80 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition">
+            <span id="deafenBtnLabel">Deafen</span>
+          </button>
+        </div>
+
+        <!-- Keep-Alive Footer Status -->
+        <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-mono">
+          <span id="playerKeepAliveText">Stay-Awake Guard: ON</span>
+          <span id="playerPeersConnectedText">Peers: 0</span>
+        </div>
+      </div>
+    </section>
+
   </main>
 
-  <main id="playerScreen" class="relative z-10 flex-1 hidden items-center justify-center p-5">
-    <div class="cafe-card rounded-3xl p-8 max-w-sm w-full text-center space-y-6">
+  <!-- Minimal Footer -->
+  <footer class="w-full border-t border-slate-900 py-4 text-center text-[11px] text-slate-500 font-mono">
+    Bedrock Cafe Persistent Proximity Voice &bull; Auto-Reconnecting WebSocket + WebRTC Watchdog
+  </footer>
 
-      <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-berry-500/15 border border-berry-400/30 text-berry-400 text-xs font-mono font-semibold">
-        <span>Bedrock Cafe Voice Chat</span>
-      </div>
-
-      <div>
-        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-sage-400/25 to-berry-500/25 border border-cream-300/20 mx-auto flex items-center justify-center mb-3 shadow-inner">
-          <span id="playerAvatarInitial" class="font-serif text-2xl font-bold text-cream-100">?</span>
-        </div>
-        <h2 id="playerDisplayName" class="font-serif text-2xl font-bold text-cream-100">Player Name</h2>
-      </div>
-
-      <div class="cafe-card-subtle rounded-2xl p-4 text-left space-y-2">
-        <div class="flex items-center justify-between text-xs">
-          <span class="text-cream-300 font-medium">Mic Level</span>
-          <span id="playerMicStatusText" class="font-mono text-[11px] text-sage-400">Active</span>
-        </div>
-        <div class="w-full h-2.5 rounded-full bg-navy-950 overflow-hidden border border-cream-300/10">
-          <div id="playerMicBar" class="h-full bg-gradient-to-r from-sage-500 to-berry-400 transition-all duration-75" style="width: 0%"></div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-3 pt-1">
-        <button id="playerMuteBtn"
-          class="py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-700 border border-cream-300/20 text-cream-100 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5">
-          <svg class="w-5 h-5 text-sage-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
-          </svg>
-          <span id="muteBtnLabel">Mute</span>
-        </button>
-
-        <button id="playerDeafenBtn"
-          class="py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-700 border border-cream-300/20 text-cream-100 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5">
-          <svg class="w-5 h-5 text-berry-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
-          </svg>
-          <span id="deafenBtnLabel">Deafen</span>
-        </button>
-      </div>
-
-    </div>
-  </main>
-
-  <div id="remoteAudioContainer" style="position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;left:-9999px;top:0;"></div>
+  <!-- Hidden container for remote WebRTC <audio> elements -->
+  <div id="remoteAudioContainer" class="hidden"></div>
 
   <script>
-    const isHostRoute =
-      location.pathname.toLowerCase().replace(/\/+$/, '') === '/host' ||
-      new URLSearchParams(location.search).has('host');
+    // =========================================================================
+    // BEDROCK CAFE v6.1 — PERSISTENT PROXIMITY VOICE ENGINE
+    // Designed for Fly.io (server.js) + Cloud Relay Fallback
+    // =========================================================================
+
+    const CLOUD_WS_CLUSTER = 'free.blr2.piesocket.com';
+    const CLOUD_WS_API_KEY = 'B9UKgvptNTWrZxfCUTquFp7nKVsYqu2LtmBao5Jg';
 
     const state = {
-      role: isHostRoute ? 'host' : null,
+      role: null, // 'host' or 'player'
+      roomCode: '',
       myPlayerName: '',
-      myPeerId: null,
       muted: false,
       deafened: false,
+      micLevel: 0,
       mcConnected: false,
+      lastMcPacketAt: 0,
       rules: {
         maxRange: 32,
         minRange: 5,
@@ -365,331 +405,673 @@
         spectatorIsolation: true
       },
       worldPlayers: {},
-      ws: null,
       peer: null,
+      hostConn: null,
+      guestConns: new Map(),
       mediaCalls: new Map(),
       remoteAudioNodes: new Map(),
-      wsPlayHeads: new Map(),
-      wsPlayerGains: new Map(),
       localStream: null,
       audioCtx: null,
-      pingTimer: null
+      wsRelays: [],
+      bc: null
     };
 
+    let hostPollTimer = null;
+    let watchdogTimer = null;
+    let httpPingTimer = null;
+    let micAnimFrame = null;
+    let wakeLockSentinel = null;
+
+    // --- DOM Elements ---
     const lobbyScreen = document.getElementById('lobbyScreen');
     const hostScreen = document.getElementById('hostScreen');
     const playerScreen = document.getElementById('playerScreen');
     const topStatusArea = document.getElementById('topStatusArea');
     const roleBadge = document.getElementById('roleBadge');
-    const leaveBtn = document.getElementById('leaveBtn');
+    const leaveSessionBtn = document.getElementById('leaveSessionBtn');
 
-    const joinPlayerSelect = document.getElementById('joinPlayerSelect');
-    const rosterFetchStatus = document.getElementById('rosterFetchStatus');
-    const joinTableBtn = document.getElementById('joinTableBtn');
-    const joinErrorMsg = document.getElementById('joinErrorMsg');
+    const joinRoomInput = document.getElementById('joinRoomInput');
+    const joinNameInput = document.getElementById('joinNameInput');
+    const joinPlayerBtn = document.getElementById('joinPlayerBtn');
+    const createHostBtn = document.getElementById('createHostBtn');
+    const lobbyErrorMsg = document.getElementById('lobbyErrorMsg');
 
+    const hostRoomCodeDisplay = document.getElementById('hostRoomCodeDisplay');
+    const hostInviteUrlText = document.getElementById('hostInviteUrlText');
     const copyInviteLinkBtn = document.getElementById('copyInviteLinkBtn');
-    const copyInviteText = document.getElementById('copyInviteText');
-    const mcWorldBadge = document.getElementById('mcWorldBadge');
-    const mcWorldDot = document.getElementById('mcWorldDot');
-    const mcWorldStatusText = document.getElementById('mcWorldStatusText');
     const mcConnectCommand = document.getElementById('mcConnectCommand');
+    const mcBackupCloudCmd = document.getElementById('mcBackupCloudCmd');
     const copyMcCmdBtn = document.getElementById('copyMcCmdBtn');
+    const copyBackupCmdBtn = document.getElementById('copyBackupCmdBtn');
+    const mcStatusDot = document.getElementById('mcStatusDot');
+    const mcStatusText = document.getElementById('mcStatusText');
 
-    const maxRangeSlider = document.getElementById('maxRangeSlider');
+    const maxRangeInput = document.getElementById('maxRangeInput');
     const maxRangeLabel = document.getElementById('maxRangeLabel');
-    const minRangeSlider = document.getElementById('minRangeSlider');
+    const minRangeInput = document.getElementById('minRangeInput');
     const minRangeLabel = document.getElementById('minRangeLabel');
     const rolloffSelect = document.getElementById('rolloffSelect');
-    const spectatorIsolationToggle = document.getElementById('spectatorIsolationToggle');
+    const spectatorToggleBtn = document.getElementById('spectatorToggleBtn');
+    const hostRosterCount = document.getElementById('hostRosterCount');
     const hostRosterList = document.getElementById('hostRosterList');
-    const hostPlayerCountBadge = document.getElementById('hostPlayerCountBadge');
-    const manualPlayerInput = document.getElementById('manualPlayerInput');
-    const addManualPlayerBtn = document.getElementById('addManualPlayerBtn');
+    const manualPollBtn = document.getElementById('manualPollBtn');
 
+    const playerTableCode = document.getElementById('playerTableCode');
+    const playerConnectionPill = document.getElementById('playerConnectionPill');
     const playerAvatarInitial = document.getElementById('playerAvatarInitial');
     const playerDisplayName = document.getElementById('playerDisplayName');
     const playerMicStatusText = document.getElementById('playerMicStatusText');
+    const playerChannelBadge = document.getElementById('playerChannelBadge');
+    const playerMicPercent = document.getElementById('playerMicPercent');
     const playerMicBar = document.getElementById('playerMicBar');
     const playerMuteBtn = document.getElementById('playerMuteBtn');
     const playerDeafenBtn = document.getElementById('playerDeafenBtn');
     const muteBtnLabel = document.getElementById('muteBtnLabel');
     const deafenBtnLabel = document.getElementById('deafenBtnLabel');
+    const playerPeersConnectedText = document.getElementById('playerPeersConnectedText');
+    const remoteAudioContainer = document.getElementById('remoteAudioContainer');
 
-    mcConnectCommand.textContent = `/connect ${location.host}`;
+    // --- Toast Helper (No alert/confirm) ---
+    function showToast(msg) {
+      const banner = document.getElementById('toastBanner');
+      const text = document.getElementById('toastMessage');
+      if (!banner || !text) return;
+      text.textContent = msg;
+      banner.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        banner.classList.add('hidden');
+      }, 2800);
+    }
 
-    if (isHostRoute) {
+    function copyTextToClipboard(text, label) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(`Copied ${label}!`);
+        }).catch(() => fallbackCopy(text, label));
+      } else {
+        fallbackCopy(text, label);
+      }
+    }
+
+    function fallbackCopy(text, label) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      showToast(`Copied ${label}!`);
+    }
+
+    // --- 1. Stay-Awake System (Screen WakeLock + Silent WebAudio Oscillator) ---
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLockSentinel = await navigator.wakeLock.request('screen');
+          wakeLockSentinel.addEventListener('release', () => {
+            wakeLockSentinel = null;
+          });
+        } catch (e) {}
+      }
+    }
+
+    function ensureAudioContextAwake() {
+      try {
+        if (!state.audioCtx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          state.audioCtx = new AudioCtx();
+        }
+        if (state.audioCtx.state === 'suspended') {
+          state.audioCtx.resume();
+        }
+        // Inaudible oscillator keeps mobile Safari/Chrome & desktop background tabs from sleeping
+        if (!window._silentKeepAliveOsc && state.audioCtx) {
+          const osc = state.audioCtx.createOscillator();
+          const gain = state.audioCtx.createGain();
+          gain.gain.value = 0.00001;
+          osc.connect(gain);
+          gain.connect(state.audioCtx.destination);
+          osc.start();
+          window._silentKeepAliveOsc = osc;
+        }
+      } catch (e) {}
+    }
+
+    document.addEventListener('click', () => {
+      if (state.role) {
+        requestWakeLock();
+        ensureAudioContextAwake();
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state.role) {
+        requestWakeLock();
+        ensureAudioContextAwake();
+        ensureAllConnectionsAlive();
+      }
+    });
+
+    // --- 2. URL & Room Helpers ---
+    function generateCafeCode() {
+      const words = ['MOSS', 'FERN', 'SAGE', 'BREW', 'PINE', 'LEAF', 'BEAN', 'MIST', 'PEAK', 'OAK'];
+      const word = words[Math.floor(Math.random() * words.length)];
+      const num = Math.floor(10 + Math.random() * 89);
+      return `${word}${num}`;
+    }
+
+    function hostPeerId(code) {
+      return `bedrockcafe-v6-${code.toLowerCase()}-host`;
+    }
+
+    function isSelfHostedServer() {
+      const h = location.hostname;
+      return Boolean(h && !h.includes('googleusercontent.com') && !h.includes('netlify.app') && !h.includes('vercel.app') && !h.includes('github.io') && location.protocol.startsWith('http'));
+    }
+
+    function getPrimaryMcConnectCommand(code) {
+      const clean = code.toUpperCase();
+      if (isSelfHostedServer()) {
+        // Direct Fly.io / Node.js server WebSocket path
+        const hostWithPort = location.host;
+        return `/connect ${hostWithPort}/room/${clean}`;
+      }
+      return `/connect ${CLOUD_WS_CLUSTER}/v3/bedrockcafe_${clean}?api_key=${CLOUD_WS_API_KEY}`;
+    }
+
+    function getBackupCloudMcCommand(code) {
+      const clean = code.toUpperCase();
+      return `/connect ${CLOUD_WS_CLUSTER}/v3/bedrockcafe_${clean}?api_key=${CLOUD_WS_API_KEY}`;
+    }
+
+    function getRelayWsUrls(code) {
+      const clean = code.toUpperCase();
+      const urls = [];
+      if (location.host && location.protocol.startsWith('http') && !location.hostname.includes('googleusercontent.com')) {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        urls.push(`${proto}//${location.host}/room/${clean}`);
+      }
+      urls.push(`wss://${CLOUD_WS_CLUSTER}/v3/bedrockcafe_${clean}?api_key=${CLOUD_WS_API_KEY}`);
+      return urls;
+    }
+
+    function sendOverRelays(payload) {
+      const raw = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      for (const ws of state.wsRelays) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(raw); } catch (e) {}
+        }
+      }
+    }
+
+    // --- 3. BroadcastChannel Same-Device Sync ---
+    function setupBroadcastChannel(roomCode) {
+      if (state.bc) {
+        try { state.bc.close(); } catch (e) {}
+      }
+      try {
+        state.bc = new BroadcastChannel(`bedrockcafe_bc_${roomCode}`);
+        state.bc.onmessage = (ev) => {
+          const msg = ev.data;
+          if (!msg) return;
+          handleRelayControlPayload(msg);
+        };
+      } catch (e) {}
+    }
+
+    // --- 4. Host Session & Persistent Minecraft WebSocket Relay ---
+    function startHostSession(roomCode) {
+      const cleanCode = roomCode.toUpperCase();
+      state.role = 'host';
+      state.roomCode = cleanCode;
+      state.worldPlayers = {};
+
+      ensureAudioContextAwake();
+      requestWakeLock();
+
       lobbyScreen.classList.add('hidden');
+      playerScreen.classList.add('hidden');
+      playerScreen.classList.remove('flex');
       hostScreen.classList.remove('hidden');
       topStatusArea.classList.remove('hidden');
       topStatusArea.classList.add('flex');
-      roleBadge.textContent = 'Host Dashboard';
-      leaveBtn.classList.add('hidden');
+      roleBadge.textContent = `Host (${cleanCode})`;
+
+      hostRoomCodeDisplay.textContent = cleanCode;
+      const inviteUrl = `${location.origin}${location.pathname}?room=${cleanCode}`;
+      hostInviteUrlText.textContent = inviteUrl;
+
+      mcConnectCommand.textContent = getPrimaryMcConnectCommand(cleanCode);
+      mcBackupCloudCmd.textContent = getBackupCloudMcCommand(cleanCode);
+
+      setupBroadcastChannel(cleanCode);
+      setupHostPeer(cleanCode);
+      connectHostWebSockets(cleanCode);
+      startLifecycleWatchdogs();
+      renderHostRoster();
     }
 
-    function sendServer(obj) {
-      if (state.ws && state.ws.readyState === WebSocket.OPEN && state.ws.bufferedAmount < 16384) {
-        try {
-          state.ws.send(JSON.stringify({ bcafe: true, ...obj }));
-        } catch (e) {}
+    function connectHostWebSockets(roomCode) {
+      for (const ws of state.wsRelays) {
+        try { ws.onclose = null; ws.close(); } catch (e) {}
       }
-    }
+      state.wsRelays = [];
 
-    function connectWebSocket() {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${proto}//${location.host}/?role=browser`);
-      state.ws = ws;
+      const urls = getRelayWsUrls(roomCode);
 
-      ws.onopen = () => {
-        sendServer({ type: 'REQUEST_ROSTER' });
-        if (state.role === 'player' && state.myPlayerName) {
-          sendServer({
-            type: 'CLAIM_PLAYER',
-            playerName: state.myPlayerName,
-            peerId: state.myPeerId || `ws-${state.myPlayerName}`
-          });
-        }
-        if (state.pingTimer) clearInterval(state.pingTimer);
-        state.pingTimer = setInterval(() => {
-          sendServer({ type: 'PING' });
-        }, 10000);
-      };
+      urls.forEach((wsUrl) => {
+        let retryMs = 1500;
 
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (!msg || !msg.bcafe) return;
+        const openSocket = () => {
+          if (state.role !== 'host' || state.roomCode !== roomCode) return;
+          try {
+            const ws = new WebSocket(wsUrl);
+            ws._targetUrl = wsUrl;
+            state.wsRelays.push(ws);
 
-          if (msg.type === 'PONG' || msg.type === 'KEEPALIVE') return;
+            ws.onopen = () => {
+              retryMs = 1500;
+              subscribeMcEvents(ws);
+              pollMinecraftWorld();
+              broadcastRosterFromHost();
+            };
 
-          if (msg.type === 'VOICE_CHUNK') {
-            handleIncomingWsVoiceChunk(msg);
-            return;
+            ws.onmessage = (ev) => {
+              handleIncomingSocketFrame(ev.data);
+            };
+
+            ws.onclose = () => {
+              const idx = state.wsRelays.indexOf(ws);
+              if (idx !== -1) state.wsRelays.splice(idx, 1);
+              if (state.role === 'host' && state.roomCode === roomCode) {
+                setTimeout(openSocket, retryMs);
+                retryMs = Math.min(retryMs * 1.5, 8000);
+              }
+            };
+
+            ws.onerror = () => {
+              try { ws.close(); } catch (e) {}
+            };
+          } catch (e) {
+            setTimeout(openSocket, 3000);
           }
+        };
 
-          if (msg.type === 'ROSTER_SYNC') {
-            state.worldPlayers = msg.worldPlayers || {};
-            state.mcConnected = Boolean(msg.mcConnected);
-            if (msg.rules) {
-              state.rules = msg.rules;
-              maxRangeSlider.value = state.rules.maxRange;
-              maxRangeLabel.textContent = `${state.rules.maxRange} blocks`;
-              minRangeSlider.value = state.rules.minRange;
-              minRangeLabel.textContent = `${state.rules.minRange} blocks`;
-              rolloffSelect.value = state.rules.rolloff;
-              spectatorIsolationToggle.checked = Boolean(state.rules.spectatorIsolation);
-            }
-            updateLobbyDropdown();
-            updateMcStatusUI(state.mcConnected);
-            renderHostRoster();
-            if (state.role === 'player') {
-              dialOtherLinkedPlayers();
-              updateSpatialAudioForAllPeers();
-            }
-          }
-        } catch (e) {}
-      };
-
-      ws.onclose = () => {
-        if (state.pingTimer) clearInterval(state.pingTimer);
-        setTimeout(connectWebSocket, 500);
-      };
-    }
-
-    connectWebSocket();
-
-    function updateLobbyDropdown() {
-      if (state.role !== null) return;
-      const currentSelection = joinPlayerSelect.value;
-      const unlinkedNames = Object.keys(state.worldPlayers).filter(name => {
-        const p = state.worldPlayers[name];
-        return p && p.inWorld !== false && !p.linkedPeerId && !p.wsConnected;
+        openSocket();
       });
 
-      joinPlayerSelect.innerHTML = '';
-
-      if (unlinkedNames.length === 0) {
-        const totalInWorld = Object.keys(state.worldPlayers).length;
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = totalInWorld === 0
-          ? 'Waiting for players in Minecraft world...'
-          : 'All players in world are already linked';
-        joinPlayerSelect.appendChild(opt);
-        joinPlayerSelect.disabled = true;
-        joinTableBtn.disabled = true;
-        rosterFetchStatus.textContent = totalInWorld === 0 ? 'Waiting for world' : 'All linked';
-      } else {
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Choose your Minecraft character...';
-        joinPlayerSelect.appendChild(placeholder);
-
-        unlinkedNames.sort().forEach(name => {
-          const opt = document.createElement('option');
-          opt.value = name;
-          opt.textContent = name;
-          joinPlayerSelect.appendChild(opt);
-        });
-
-        if (currentSelection && unlinkedNames.includes(currentSelection)) {
-          joinPlayerSelect.value = currentSelection;
-        } else if (unlinkedNames.length === 1) {
-          joinPlayerSelect.value = unlinkedNames[0];
+      if (hostPollTimer) clearInterval(hostPollTimer);
+      // Poll Minecraft every 1500ms (gentle rate that never triggers cloud relay disconnects)
+      hostPollTimer = setInterval(() => {
+        if (state.role === 'host') {
+          pollMinecraftWorld();
+          if (state.mcConnected && Date.now() - state.lastMcPacketAt > 12000) {
+            updateMcStatusUI(false);
+          }
         }
+      }, 1500);
+    }
 
-        joinPlayerSelect.disabled = false;
-        joinTableBtn.disabled = !joinPlayerSelect.value;
-        rosterFetchStatus.textContent = `${unlinkedNames.length} available in world`;
+    function makeMcCommandRequest(commandLine, requestId) {
+      return JSON.stringify({
+        header: {
+          version: 1,
+          requestId: requestId || crypto.randomUUID(),
+          messagePurpose: 'commandRequest',
+          messageType: 'commandRequest'
+        },
+        body: {
+          version: 1,
+          commandLine: commandLine,
+          origin: { type: 'player' }
+        }
+      });
+    }
+
+    function subscribeMcEvents(ws) {
+      const events = ['PlayerTransform', 'PlayerMessage', 'PlayerTravelled'];
+      events.forEach((evName) => {
+        const subFrame = JSON.stringify({
+          header: {
+            version: 1,
+            requestId: crypto.randomUUID(),
+            messagePurpose: 'subscribe',
+            messageType: 'commandRequest'
+          },
+          body: { eventName: evName }
+        });
+        try { ws.send(subFrame); } catch (e) {}
+      });
+    }
+
+    function pollMinecraftWorld() {
+      sendOverRelays(makeMcCommandRequest('querytarget @a', 'poll-pos-' + Date.now()));
+      sendOverRelays(makeMcCommandRequest('testfor @a[m=spectator]', 'poll-spec-' + Date.now()));
+    }
+
+    function updateMcStatusUI(connected) {
+      state.mcConnected = connected;
+      if (connected) {
+        mcStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        mcStatusText.textContent = 'Minecraft World Connected';
+        mcStatusText.className = 'text-xs font-mono text-emerald-400';
+      } else {
+        mcStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+        mcStatusText.textContent = 'Waiting for /connect in world...';
+        mcStatusText.className = 'text-xs font-mono text-amber-300';
       }
     }
 
-    joinPlayerSelect.addEventListener('change', () => {
-      joinTableBtn.disabled = !joinPlayerSelect.value;
-    });
+    function upsertWorldPlayer(name, patch) {
+      if (!name) return;
+      const existing = state.worldPlayers[name] || {
+        name: name,
+        x: 0,
+        y: 64,
+        z: 0,
+        yaw: 0,
+        dimension: 0,
+        gamemode: 'survival',
+        linkedPeerId: null,
+        muted: false,
+        deafened: false,
+        speaking: false,
+        lastSeenAt: Date.now()
+      };
+      state.worldPlayers[name] = Object.assign(existing, patch, { lastSeenAt: Date.now() });
+    }
 
-    function updateMcStatusUI(connected) {
-      if (connected) {
-        mcWorldBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sage-500/20 text-sage-400 border border-sage-400/30';
-        mcWorldDot.className = 'w-2 h-2 rounded-full bg-sage-400';
-        mcWorldStatusText.textContent = 'Minecraft World Linked';
-      } else {
-        mcWorldBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-espresso-400/15 text-espresso-400 border border-espresso-400/30';
-        mcWorldDot.className = 'w-2 h-2 rounded-full bg-espresso-400 animate-pulse';
-        mcWorldStatusText.textContent = 'Waiting for /connect in Minecraft';
+    function handleIncomingSocketFrame(rawData) {
+      let pkt;
+      try {
+        pkt = JSON.parse(rawData);
+      } catch (e) {
+        return;
       }
+      if (!pkt) return;
+
+      // 1. Handle Bedrock Cafe internal signaling messages
+      if (pkt.bcafe) {
+        handleRelayControlPayload(pkt);
+        return;
+      }
+
+      // 2. Ignore our own outgoing commandRequests echoed back by public relays
+      if (pkt.header && (pkt.header.messagePurpose === 'commandRequest' || pkt.header.messagePurpose === 'subscribe')) {
+        return;
+      }
+
+      // 3. Handle genuine Minecraft Bedrock packets (PlayerTransform or querytargetcommandResponse)
+      if (state.role === 'host') {
+        let updated = false;
+
+        if (pkt.header && pkt.header.eventName === 'PlayerTransform' && pkt.body) {
+          state.lastMcPacketAt = Date.now();
+          updateMcStatusUI(true);
+          const b = pkt.body;
+          const pName = (b.player && b.player.name) ? b.player.name : b.name;
+          const pos = b.position || b;
+          if (pName) {
+            upsertWorldPlayer(pName, {
+              x: Number(pos.x) || 0,
+              y: Number(pos.y) || 64,
+              z: Number(pos.z) || 0,
+              yaw: Number(b.yRot || pos.yRot || 0),
+              dimension: Number(b.dimension || 0)
+            });
+            updated = true;
+          }
+        } else if (pkt.header && pkt.header.messagePurpose === 'commandResponse' && pkt.body) {
+          state.lastMcPacketAt = Date.now();
+          updateMcStatusUI(true);
+
+          // Parse querytarget @a details array
+          if ( pkt.body.details ) {
+            try {
+              const details = typeof pkt.body.details === 'string' ? JSON.parse(pkt.body.details) : pkt.body.details;
+              if (Array.isArray(details)) {
+                details.forEach((ent) => {
+                  const pName = ent.name || ent.uniqueId;
+                  if (pName && ent.position) {
+                    upsertWorldPlayer(pName, {
+                      x: Number(ent.position.x) || 0,
+                      y: Number(ent.position.y) || 64,
+                      z: Number(ent.position.z) || 0,
+                      yaw: Number(ent.yRot) || 0,
+                      dimension: Number(ent.dimension) || 0
+                    });
+                    updated = true;
+                  }
+                });
+              }
+            } catch (e) {}
+          }
+
+          // Parse testfor @a[m=spectator] victim array
+          if (Array.isArray(pkt.body.victim)) {
+            const specSet = new Set(pkt.body.victim);
+            Object.keys(state.worldPlayers).forEach((pName) => {
+              state.worldPlayers[pName].gamemode = specSet.has(pName) ? 'spectator' : 'survival';
+            });
+            updated = true;
+          }
+        }
+
+        if (updated) {
+          broadcastRosterFromHost();
+          renderHostRoster();
+        }
+      }
+    }
+
+    function handleRelayControlPayload(msg) {
+      if (!msg || !msg.type) return;
+
+      if (state.role === 'host') {
+        if (msg.type === 'REQUEST_ROSTER') {
+          broadcastRosterFromHost();
+        } else if (msg.type === 'CLAIM_PLAYER') {
+          handlePlayerClaim(msg.playerName, msg.peerId);
+        } else if (msg.type === 'PLAYER_MIC_STATE') {
+          if (msg.playerName) {
+            upsertWorldPlayer(msg.playerName, {
+              muted: Boolean(msg.muted),
+              deafened: Boolean(msg.deafened),
+              speaking: Boolean(msg.speaking)
+            });
+            renderHostRoster();
+            broadcastRosterFromHost();
+          }
+        } else if (msg.type === 'LEAVE_PLAYER') {
+          if (msg.playerName && state.worldPlayers[msg.playerName]) {
+            state.worldPlayers[msg.playerName].linkedPeerId = null;
+            state.worldPlayers[msg.playerName].speaking = false;
+            renderHostRoster();
+            broadcastRosterFromHost();
+          }
+        }
+      } else if (state.role === 'player') {
+        if (msg.type === 'ROSTER_SYNC') {
+          state.worldPlayers = msg.worldPlayers || {};
+          if (msg.rules) state.rules = msg.rules;
+          dialOtherLinkedPlayers();
+          updateSpatialAudioForAllPeers();
+        }
+      }
+    }
+
+    function handlePlayerClaim(playerName, peerId) {
+      if (!playerName || !peerId) return;
+      const cleanName = playerName.trim();
+      upsertWorldPlayer(cleanName, {
+        linkedPeerId: peerId
+      });
+      renderHostRoster();
+      broadcastRosterFromHost();
+    }
+
+    function broadcastRosterFromHost() {
+      if (state.role !== 'host') return;
+      const payload = {
+        bcafe: true,
+        room: state.roomCode,
+        type: 'ROSTER_SYNC',
+        worldPlayers: state.worldPlayers,
+        rules: state.rules,
+        ts: Date.now()
+      };
+      if (state.bc) {
+        try { state.bc.postMessage(payload); } catch (e) {}
+      }
+      state.guestConns.forEach((conn) => {
+        if (conn && conn.open) {
+          try { conn.send(payload); } catch (e) {}
+        }
+      });
+      sendOverRelays(payload);
     }
 
     function renderHostRoster() {
       if (state.role !== 'host') return;
-      const names = Object.keys(state.worldPlayers).sort();
-      const linkedCount = names.filter(n => Boolean(state.worldPlayers[n].linkedPeerId || state.worldPlayers[n].wsConnected)).length;
-      hostPlayerCountBadge.textContent = `${names.length} In World · ${linkedCount} Linked`;
+      const names = Object.keys(state.worldPlayers);
+      hostRosterCount.textContent = `${names.length} Player${names.length === 1 ? '' : 's'}`;
 
       if (names.length === 0) {
         hostRosterList.innerHTML = `
-          <div class="cafe-card-subtle rounded-2xl p-6 text-center text-xs text-cream-300">
-            Waiting for players in the linked Minecraft world...
+          <div class="rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 text-center text-xs text-slate-400">
+            No players detected yet. Run the <code class="font-mono text-sky-300">/connect</code> command in Minecraft or share the invite link with players.
           </div>
         `;
         return;
       }
 
-      hostRosterList.innerHTML = '';
-      names.forEach(name => {
+      hostRosterList.innerHTML = names.map((name) => {
         const p = state.worldPlayers[name];
-        const isLinked = Boolean(p.linkedPeerId || p.wsConnected);
+        const voiceLinked = Boolean(p.linkedPeerId);
         const isSpec = p.gamemode === 'spectator';
+        const coords = `${Math.round(p.x || 0)}, ${Math.round(p.y || 64)}, ${Math.round(p.z || 0)}`;
+        const statusBadge = voiceLinked
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">${p.deafened ? 'Deafened' : (p.muted ? 'Muted' : 'Voice Linked')}</span>`
+          : `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-slate-800 text-slate-400">In World Only</span>`;
 
-        const row = document.createElement('div');
-        row.className = 'cafe-card-subtle rounded-2xl px-4 py-3 flex items-center justify-between gap-3';
-        row.innerHTML = `
-          <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 rounded-xl ${isLinked ? 'bg-sage-500/25 border-sage-400/40 text-sage-400' : 'bg-navy-900 border-cream-300/15 text-cream-300'} border flex items-center justify-center font-serif font-bold text-sm shrink-0">
-              ${name.charAt(0).toUpperCase()}
-            </div>
-            <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="font-semibold text-sm text-cream-100 truncate">${name}</span>
-                ${isSpec ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-berry-500/20 text-berry-400 border border-berry-400/30">Spectator</span>' : ''}
+        const modeBadge = isSpec
+          ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">Spectator VC</span>`
+          : `<span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30">Alive</span>`;
+
+        return `
+          <div class="flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-900/80 border border-slate-800">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-8 h-8 rounded-xl ${p.speaking ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'} font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                ${name.charAt(0).toUpperCase()}
               </div>
-              <div class="text-[11px] text-cream-300/75 font-mono">
-                X:${Math.round(p.x)} Y:${Math.round(p.y)} Z:${Math.round(p.z)}
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-white truncate">${name}</div>
+                <div class="text-[11px] font-mono text-slate-400">XYZ: ${coords}</div>
               </div>
             </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            ${isLinked
-              ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sage-500/20 text-sage-400 border border-sage-400/30">
-                  ${p.muted ? 'Muted' : (p.speaking ? 'Speaking ●' : 'Linked')}
-                 </span>`
-              : `<span class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-navy-900 text-cream-300/70 border border-cream-300/15">
-                  Waiting to Join
-                 </span>`
-            }
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${modeBadge}
+              ${statusBadge}
+            </div>
           </div>
         `;
-        hostRosterList.appendChild(row);
-      });
+      }).join('');
     }
 
-    addManualPlayerBtn.addEventListener('click', () => {
-      const name = manualPlayerInput.value.trim();
-      if (!name) return;
-      sendServer({ type: 'ADD_MANUAL_PLAYER', playerName: name });
-      manualPlayerInput.value = '';
-    });
+    // --- 5. Self-Healing Host PeerJS Broker ---
+    function setupHostPeer(roomCode) {
+      if (state.peer) {
+        try { state.peer.destroy(); } catch (e) {}
+      }
 
-    manualPlayerInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') addManualPlayerBtn.click();
-    });
+      const initHostPeer = () => {
+        if (state.role !== 'host' || state.roomCode !== roomCode) return;
 
-    maxRangeSlider.addEventListener('input', (e) => {
-      state.rules.maxRange = Number(e.target.value);
-      maxRangeLabel.textContent = `${state.rules.maxRange} blocks`;
-      sendServer({ type: 'UPDATE_RULES', rules: state.rules });
-    });
+        const peer = new Peer(hostPeerId(roomCode), {
+          pingInterval: 10000,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+          }
+        });
+        state.peer = peer;
 
-    minRangeSlider.addEventListener('input', (e) => {
-      state.rules.minRange = Number(e.target.value);
-      minRangeLabel.textContent = `${state.rules.minRange} blocks`;
-      sendServer({ type: 'UPDATE_RULES', rules: state.rules });
-    });
+        peer.on('connection', (conn) => {
+          conn.on('open', () => {
+            state.guestConns.set(conn.peer, conn);
+            conn.send({
+              bcafe: true,
+              type: 'ROSTER_SYNC',
+              worldPlayers: state.worldPlayers,
+              rules: state.rules
+            });
+          });
 
-    rolloffSelect.addEventListener('change', (e) => {
-      state.rules.rolloff = e.target.value;
-      sendServer({ type: 'UPDATE_RULES', rules: state.rules });
-    });
+          conn.on('data', (data) => {
+            if (!data) return;
+            handleRelayControlPayload(data);
+          });
 
-    spectatorIsolationToggle.addEventListener('change', (e) => {
-      state.rules.spectatorIsolation = e.target.checked;
-      sendServer({ type: 'UPDATE_RULES', rules: state.rules });
-    });
+          conn.on('close', () => {
+            state.guestConns.delete(conn.peer);
+          });
+        });
 
-    copyInviteLinkBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(location.origin);
-      copyInviteText.textContent = 'Website Link Copied!';
-      setTimeout(() => { copyInviteText.textContent = 'Copy Player Website Link'; }, 2000);
-    });
+        peer.on('disconnected', () => {
+          if (state.role === 'host' && !peer.destroyed) {
+            try { peer.reconnect(); } catch (e) {}
+          }
+        });
 
-    copyMcCmdBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(mcConnectCommand.textContent.trim());
-      copyMcCmdBtn.textContent = 'Copied!';
-      setTimeout(() => { copyMcCmdBtn.textContent = 'Copy Command'; }, 1800);
-    });
+        peer.on('error', (err) => {
+          if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed') {
+            if (!peer.destroyed) {
+              setTimeout(() => { try { peer.reconnect(); } catch (e) {} }, 2500);
+            }
+          } else if (err.type === 'unavailable-id') {
+            setTimeout(initHostPeer, 4000);
+          }
+        });
+      };
 
-    joinTableBtn.addEventListener('click', async () => {
-      const selectedPlayer = joinPlayerSelect.value;
-      if (!selectedPlayer) return;
+      initHostPeer();
+    }
 
-      joinErrorMsg.classList.add('hidden');
-      joinTableBtn.disabled = true;
-      joinTableBtn.textContent = 'Connecting Microphone...';
+    // --- 6. Player Session, Persistent WebSockets & WebRTC Mesh ---
+    async function startPlayerSession(roomCode, playerName) {
+      const cleanCode = roomCode.trim().toUpperCase();
+      const cleanName = playerName.trim();
+
+      ensureAudioContextAwake();
+      requestWakeLock();
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        state.localStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true,
-            channelCount: 1,
-            sampleRate: 48000
+            autoGainControl: true
           },
           video: false
         });
-        state.localStream = stream;
-        startPlayerSession(selectedPlayer);
       } catch (err) {
-        joinErrorMsg.textContent = 'Microphone permission is required to join the voice chat.';
-        joinErrorMsg.classList.remove('hidden');
-        joinTableBtn.disabled = false;
-        joinTableBtn.textContent = 'Join Voice Chat';
+        lobbyErrorMsg.textContent = 'Microphone access is required to join voice chat. Please allow microphone permissions.';
+        lobbyErrorMsg.classList.remove('hidden');
+        return;
       }
-    });
 
-    function startPlayerSession(playerName) {
+      lobbyErrorMsg.classList.add('hidden');
       state.role = 'player';
-      state.myPlayerName = playerName;
+      state.roomCode = cleanCode;
+      state.myPlayerName = cleanName;
+      state.muted = false;
+      state.deafened = false;
 
       lobbyScreen.classList.add('hidden');
       hostScreen.classList.add('hidden');
@@ -697,340 +1079,281 @@
       playerScreen.classList.add('flex');
       topStatusArea.classList.remove('hidden');
       topStatusArea.classList.add('flex');
-      roleBadge.textContent = playerName;
 
-      playerDisplayName.textContent = playerName;
-      playerAvatarInitial.textContent = playerName.charAt(0).toUpperCase();
+      roleBadge.textContent = cleanName;
+      playerTableCode.textContent = cleanCode;
+      playerDisplayName.textContent = cleanName;
+      playerAvatarInitial.textContent = cleanName.charAt(0).toUpperCase();
 
-      sendServer({
-        type: 'CLAIM_PLAYER',
-        playerName,
-        peerId: `ws-${playerName}`
-      });
-
-      setupLocalMicAndRelay();
-      setupPlayerWebRTC(playerName);
+      updatePlayerControlButtons();
+      setupBroadcastChannel(cleanCode);
+      setupLocalMicMeter();
+      setupPlayerWebRTC(cleanCode, cleanName);
+      startLifecycleWatchdogs();
     }
 
-    function floatTo16BitBase64(inputFloats, inSampleRate, outSampleRate) {
-      const ratio = inSampleRate / outSampleRate;
-      const outLength = Math.floor(inputFloats.length / ratio);
-      const bytes = new Uint8Array(outLength * 2);
-      const view = new DataView(bytes.buffer);
-      for (let i = 0; i < outLength; i++) {
-        const pos = i * ratio;
-        const idx = Math.floor(pos);
-        const frac = pos - idx;
-        const s0 = inputFloats[idx] || 0;
-        const s1 = inputFloats[Math.min(inputFloats.length - 1, idx + 1)] || 0;
-        const sample = s0 + frac * (s1 - s0);
-        const clamped = Math.max(-1, Math.min(1, sample));
-        const val = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
-        view.setInt16(i * 2, val, true);
-      }
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary);
-    }
-
-    function base64ToFloat32(b64) {
-      const binary = atob(b64);
-      const len = binary.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      const view = new DataView(bytes.buffer);
-      const sampleCount = Math.floor(len / 2);
-      const floats = new Float32Array(sampleCount);
-      for (let i = 0; i < sampleCount; i++) {
-        floats[i] = view.getInt16(i * 2, true) / 32768.0;
-      }
-      return floats;
-    }
-
-    function setupLocalMicAndRelay() {
-      state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (state.audioCtx.state === 'suspended') {
-        state.audioCtx.resume();
-      }
-
-      const source = state.audioCtx.createMediaStreamSource(state.localStream);
+    function setupLocalMicMeter() {
+      if (!state.localStream) return;
+      ensureAudioContextAwake();
+      const src = state.audioCtx.createMediaStreamSource(state.localStream);
       const analyser = state.audioCtx.createAnalyser();
       analyser.fftSize = 256;
-      source.connect(analyser);
+      src.connect(analyser);
 
-      const processor = state.audioCtx.createScriptProcessor(4096, 1, 1);
-      const zeroGain = state.audioCtx.createGain();
-      zeroGain.gain.value = 0;
-      source.connect(processor);
-      processor.connect(zeroGain);
-      zeroGain.connect(state.audioCtx.destination);
+      const dataArr = new Uint8Array(analyser.frequencyBinCount);
+      let lastSpeaking = false;
 
-      let hangFrames = 0;
-      processor.onaudioprocess = (e) => {
-        if (state.role !== 'player' || state.muted || state.deafened) return;
-        if (!state.ws || state.ws.readyState !== WebSocket.OPEN || state.ws.bufferedAmount > 8192) return;
-
-        const input = e.inputBuffer.getChannelData(0);
-        let sumSq = 0;
-        for (let i = 0; i < input.length; i++) {
-          sumSq += input[i] * input[i];
-        }
-        const rms = Math.sqrt(sumSq / input.length);
-        if (rms > 0.005) {
-          hangFrames = 5;
-        } else if (hangFrames > 0) {
-          hangFrames--;
-        } else {
-          return;
-        }
-
-        const b64 = floatTo16BitBase64(input, state.audioCtx.sampleRate, 16000);
-        sendServer({
-          type: 'VOICE_CHUNK',
-          from: state.myPlayerName,
-          sr: 16000,
-          d: b64
-        });
-      };
-
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      let lastBroadcastSpeaking = false;
-
-      function tick() {
+      const tickMic = () => {
         if (state.role !== 'player') return;
-        requestAnimationFrame(tick);
-
-        if (state.muted || state.deafened) {
-          playerMicBar.style.width = '0%';
-          return;
-        }
-
-        analyser.getByteFrequencyData(data);
+        analyser.getByteFrequencyData(dataArr);
         let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i];
-        const avg = sum / data.length;
-        const pct = Math.min(100, Math.round((avg / 65) * 100));
-        playerMicBar.style.width = `${pct}%`;
+        for (let i = 0; i < dataArr.length; i++) sum += dataArr[i];
+        const avg = sum / dataArr.length;
+        const level = (state.muted || state.deafened) ? 0 : Math.min(100, Math.round((avg / 90) * 100));
+        state.micLevel = level;
 
-        const speaking = pct > 10;
-        if (speaking !== lastBroadcastSpeaking) {
-          lastBroadcastSpeaking = speaking;
-          sendPlayerMicState(speaking);
+        playerMicBar.style.width = `${level}%`;
+        playerMicPercent.textContent = `${level}%`;
+
+        const nowSpeaking = level > 12;
+        if (nowSpeaking !== lastSpeaking) {
+          lastSpeaking = nowSpeaking;
+          sendPlayerMicState(nowSpeaking);
         }
-      }
-      tick();
-    }
 
-    function getGainForPlayerName(otherPlayerName) {
-      if (state.deafened) return 0;
-      const me = state.worldPlayers[state.myPlayerName];
-      const other = state.worldPlayers[otherPlayerName];
-      if (!me || !other) return 1.0;
-
-      const meSpec = me.gamemode === 'spectator';
-      const otherSpec = other.gamemode === 'spectator';
-
-      if (state.rules.spectatorIsolation) {
-        if (!meSpec && otherSpec) return 0.0;
-        if (meSpec && otherSpec) return 1.0;
-      }
-
-      const dx = (other.x || 0) - (me.x || 0);
-      const dy = (other.y || 64) - (me.y || 64);
-      const dz = (other.z || 0) - (me.z || 0);
-      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-      return calculateProximityGain(
-        dist,
-        state.rules.minRange,
-        state.rules.maxRange,
-        state.rules.rolloff
-      );
-    }
-
-    function hasActiveWebRTCForPlayer(otherPlayerName) {
-      const other = state.worldPlayers[otherPlayerName];
-      if (!other || !other.linkedPeerId) return false;
-      const node = state.remoteAudioNodes.get(other.linkedPeerId);
-      return Boolean(node && node.hasStream && !node.audioEl.paused);
-    }
-
-    function handleIncomingWsVoiceChunk(msg) {
-      if (state.role !== 'player' || state.deafened) return;
-      if (!msg.from || msg.from === state.myPlayerName || !msg.d) return;
-      if (hasActiveWebRTCForPlayer(msg.from)) return;
-
-      const gainVal = getGainForPlayerName(msg.from);
-      if (gainVal <= 0.001) return;
-
-      if (!state.audioCtx) {
-        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (state.audioCtx.state === 'suspended') {
-        state.audioCtx.resume();
-      }
-
-      const floats = base64ToFloat32(msg.d);
-      if (floats.length === 0) return;
-
-      const sr = msg.sr || 16000;
-      const audioBuffer = state.audioCtx.createBuffer(1, floats.length, sr);
-      audioBuffer.getChannelData(0).set(floats);
-
-      // Reuse a single persistent GainNode per player so old audio nodes never accumulate in memory
-      let playerGain = state.wsPlayerGains.get(msg.from);
-      if (!playerGain) {
-        playerGain = state.audioCtx.createGain();
-        playerGain.connect(state.audioCtx.destination);
-        state.wsPlayerGains.set(msg.from, playerGain);
-      }
-      playerGain.gain.value = gainVal;
-
-      const src = state.audioCtx.createBufferSource();
-      src.buffer = audioBuffer;
-      src.connect(playerGain);
-
-      // Immediately delete and disconnect the buffer node as soon as the chunk finishes playing
-      src.onended = () => {
-        try {
-          src.disconnect();
-          src.buffer = null;
-        } catch (e) {}
+        micAnimFrame = requestAnimationFrame(tickMic);
       };
 
-      const now = state.audioCtx.currentTime;
-      let nextTime = state.wsPlayHeads.get(msg.from) || 0;
-      if (nextTime < now || nextTime > now + 0.3) {
-        nextTime = now + 0.03;
-      }
-      src.start(nextTime);
-      state.wsPlayHeads.set(msg.from, nextTime + audioBuffer.duration);
+      if (micAnimFrame) cancelAnimationFrame(micAnimFrame);
+      micAnimFrame = requestAnimationFrame(tickMic);
     }
 
-    function sendPlayerMicState(speaking = false) {
-      if (state.role !== 'player') return;
-      sendServer({
-        type: 'PLAYER_MIC_STATE',
-        playerName: state.myPlayerName,
-        muted: state.muted,
-        deafened: state.deafened,
-        speaking
+    function connectPlayerRelaySockets(roomCode, playerName, getMyPeerId) {
+      for (const ws of state.wsRelays) {
+        try { ws.onclose = null; ws.close(); } catch (e) {}
+      }
+      state.wsRelays = [];
+
+      const urls = getRelayWsUrls(roomCode);
+
+      urls.forEach((wsUrl) => {
+        let retryMs = 1500;
+
+        const openPlayerWs = () => {
+          if (state.role !== 'player' || state.roomCode !== roomCode) return;
+          try {
+            const ws = new WebSocket(wsUrl);
+            ws._targetUrl = wsUrl;
+            state.wsRelays.push(ws);
+
+            ws.onopen = () => {
+              retryMs = 1500;
+              const myPeerId = getMyPeerId();
+              if (myPeerId) {
+                ws.send(JSON.stringify({
+                  bcafe: true,
+                  room: roomCode,
+                  type: 'CLAIM_PLAYER',
+                  playerName: playerName,
+                  peerId: myPeerId
+                }));
+                ws.send(JSON.stringify({
+                  bcafe: true,
+                  room: roomCode,
+                  type: 'REQUEST_ROSTER'
+                }));
+              }
+            };
+
+            ws.onmessage = (ev) => {
+              handleIncomingSocketFrame(ev.data);
+            };
+
+            ws.onclose = () => {
+              const idx = state.wsRelays.indexOf(ws);
+              if (idx !== -1) state.wsRelays.splice(idx, 1);
+              if (state.role === 'player' && state.roomCode === roomCode) {
+                setTimeout(openPlayerWs, retryMs);
+                retryMs = Math.min(retryMs * 1.5, 8000);
+              }
+            };
+
+            ws.onerror = () => {
+              try { ws.close(); } catch (e) {}
+            };
+          } catch (e) {
+            setTimeout(openPlayerWs, 2500);
+          }
+        };
+
+        openPlayerWs();
       });
     }
 
-    function setupPlayerWebRTC(playerName) {
-      if (state.peer) state.peer.destroy();
-      state.peer = new Peer({
+    function connectToHostPeerChannel(roomCode, playerName, myPeerId) {
+      if (state.role !== 'player' || !state.peer || state.peer.destroyed) return;
+      if (state.hostConn && state.hostConn.open) return;
+
+      try {
+        const conn = state.peer.connect(hostPeerId(roomCode), { reliable: true });
+        state.hostConn = conn;
+
+        conn.on('open', () => {
+          conn.send({
+            bcafe: true,
+            room: roomCode,
+            type: 'CLAIM_PLAYER',
+            playerName: playerName,
+            peerId: myPeerId
+          });
+        });
+
+        conn.on('data', (msg) => {
+          handleRelayControlPayload(msg);
+        });
+
+        conn.on('close', () => {
+          if (state.role === 'player' && state.roomCode === roomCode) {
+            setTimeout(() => connectToHostPeerChannel(roomCode, playerName, myPeerId), 2500);
+          }
+        });
+      } catch (e) {}
+    }
+
+    function setupPlayerWebRTC(roomCode, playerName) {
+      if (state.peer) {
+        try { state.peer.destroy(); } catch (e) {}
+      }
+
+      const peer = new Peer({
+        pingInterval: 10000,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun.cloudflare.com:3478' },
-            {
-              urls: 'turn:openrelay.metered.ca:80',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-              username: 'openrelayproject',
-              credential: 'openrelayproject'
-            }
+            { urls: 'stun:stun2.l.google.com:19302' }
           ]
         }
       });
+      state.peer = peer;
 
-      state.peer.on('open', (myPeerId) => {
-        state.myPeerId = myPeerId;
-        sendServer({
+      peer.on('open', (myPeerId) => {
+        const claimMsg = {
+          bcafe: true,
+          room: roomCode,
           type: 'CLAIM_PLAYER',
-          playerName,
+          playerName: playerName,
           peerId: myPeerId
-        });
+        };
+        if (state.bc) {
+          try { state.bc.postMessage(claimMsg); } catch (e) {}
+        }
+        connectToHostPeerChannel(roomCode, playerName, myPeerId);
+        connectPlayerRelaySockets(roomCode, playerName, () => peer.id);
       });
 
-      state.peer.on('disconnected', () => {
-        try { state.peer.reconnect(); } catch (e) {}
-      });
-
-      state.peer.on('call', (call) => {
+      peer.on('call', (call) => {
         call.answer(state.localStream);
-        handleIncomingMediaCall(call);
+        setupMediaCallHandlers(call);
+      });
+
+      peer.on('disconnected', () => {
+        if (state.role === 'player' && !peer.destroyed) {
+          try { peer.reconnect(); } catch (e) {}
+        }
+      });
+
+      peer.on('error', (err) => {
+        if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error' || err.type === 'socket-closed') {
+          if (!peer.destroyed) {
+            setTimeout(() => { try { peer.reconnect(); } catch (e) {} }, 2500);
+          }
+        }
       });
     }
 
     function dialOtherLinkedPlayers() {
-      if (state.role !== 'player' || !state.peer || !state.myPeerId) return;
-      Object.values(state.worldPlayers).forEach(p => {
-        if (!p.linkedPeerId || p.linkedPeerId.startsWith('ws-') || p.linkedPeerId === state.myPeerId) return;
-        const existingNode = state.remoteAudioNodes.get(p.linkedPeerId);
-        if (existingNode && existingNode.hasStream) return;
+      if (state.role !== 'player' || !state.peer || !state.peer.id || !state.localStream) return;
+      const myPeerId = state.peer.id;
 
-        if (!state.mediaCalls.has(p.linkedPeerId) && state.myPeerId < p.linkedPeerId) {
-          const call = state.peer.call(p.linkedPeerId, state.localStream, {
-            metadata: { playerName: state.myPlayerName }
-          });
-          handleIncomingMediaCall(call);
+      Object.values(state.worldPlayers).forEach((p) => {
+        const remotePeerId = p.linkedPeerId;
+        if (!remotePeerId || remotePeerId === myPeerId) return;
+        if (state.mediaCalls.has(remotePeerId)) return;
+
+        // Deterministic caller order prevents glare, with fallback dial if not connected
+        if (myPeerId < remotePeerId) {
+          try {
+            const call = state.peer.call(remotePeerId, state.localStream);
+            if (call) setupMediaCallHandlers(call);
+          } catch (e) {}
         }
       });
+
+      playerPeersConnectedText.textContent = `Peers: ${state.remoteAudioNodes.size}`;
     }
 
-    function handleIncomingMediaCall(call) {
-      if (!call) return;
+    function setupMediaCallHandlers(call) {
+      if (!call || !call.peer) return;
       state.mediaCalls.set(call.peer, call);
+
       call.on('stream', (remoteStream) => {
-        setupRemoteSpatialNode(call.peer, remoteStream);
+        attachRemoteSpatialStream(call.peer, remoteStream);
+        playerPeersConnectedText.textContent = `Peers: ${state.remoteAudioNodes.size}`;
       });
-      call.on('close', () => {
-        cleanupRemoteNode(call.peer);
-      });
-      call.on('error', () => {
-        cleanupRemoteNode(call.peer);
-      });
+
+      const cleanup = () => {
+        state.mediaCalls.delete(call.peer);
+        const node = state.remoteAudioNodes.get(call.peer);
+        if (node) {
+          try { node.audioEl.pause(); node.audioEl.remove(); } catch (e) {}
+          state.remoteAudioNodes.delete(call.peer);
+        }
+        playerPeersConnectedText.textContent = `Peers: ${state.remoteAudioNodes.size}`;
+      };
+
+      call.on('close', cleanup);
+      call.on('error', cleanup);
     }
 
-    function setupRemoteSpatialNode(peerId, remoteStream) {
-      let existing = state.remoteAudioNodes.get(peerId);
-      if (existing && existing.hasStream) return;
+    function attachRemoteSpatialStream(remotePeerId, remoteStream) {
+      ensureAudioContextAwake();
+      if (state.remoteAudioNodes.has(remotePeerId)) return;
 
+      // Muted <audio> element forces WebRTC stream decoding across Chrome/Safari/Firefox
       const audioEl = document.createElement('audio');
       audioEl.srcObject = remoteStream;
-      audioEl.muted = false;
-      audioEl.autoplay = true;
+      audioEl.muted = true;
       audioEl.playsInline = true;
-      audioEl.volume = 1.0;
-      document.getElementById('remoteAudioContainer').appendChild(audioEl);
+      remoteAudioContainer.appendChild(audioEl);
       audioEl.play().catch(() => {});
 
-      state.remoteAudioNodes.set(peerId, {
-        audioEl,
-        hasStream: true
+      const source = state.audioCtx.createMediaStreamSource(remoteStream);
+      const panner = state.audioCtx.createPanner();
+      panner.panningModel = 'HRTF';
+      panner.distanceModel = 'linear';
+      panner.refDistance = 1;
+      panner.maxDistance = 1000;
+      panner.rolloffFactor = 0; // Distance gain handled explicitly by calculateProximityGain
+
+      const gainNode = state.audioCtx.createGain();
+      gainNode.gain.value = 1.0;
+
+      source.connect(panner);
+      panner.connect(gainNode);
+      gainNode.connect(state.audioCtx.destination);
+
+      state.remoteAudioNodes.set(remotePeerId, {
+        source,
+        panner,
+        gainNode,
+        audioEl
       });
+
       updateSpatialAudioForAllPeers();
     }
 
-    function cleanupRemoteNode(peerId) {
-      const node = state.remoteAudioNodes.get(peerId);
-      if (node) {
-        try {
-          node.audioEl.pause();
-          node.audioEl.srcObject = null;
-          node.audioEl.remove();
-        } catch (e) {}
-        state.remoteAudioNodes.delete(peerId);
-      }
-      state.mediaCalls.delete(peerId);
-    }
-
+    // --- 7. 3D Proximity Attenuation & Spectator Isolation Engine ---
     function calculateProximityGain(distance, minRange, maxRange, curve) {
       if (distance <= minRange) return 1.0;
       if (distance >= maxRange) return 0.0;
@@ -1044,50 +1367,274 @@
       }
     }
 
-    function updateSpatialAudioForAllPeers() {
-      if (state.role !== 'player') return;
+    function findPlayerByPeerId(peerId) {
+      for (const name in state.worldPlayers) {
+        if (state.worldPlayers[name].linkedPeerId === peerId) {
+          return state.worldPlayers[name];
+        }
+      }
+      return null;
+    }
 
-      for (const [otherName, gainNode] of state.wsPlayerGains.entries()) {
-        gainNode.gain.value = state.deafened ? 0 : getGainForPlayerName(otherName);
+    function updateSpatialAudioForAllPeers() {
+      if (state.role !== 'player' || !state.audioCtx) return;
+      const me = state.worldPlayers[state.myPlayerName];
+
+      if (me) {
+        const isSpec = me.gamemode === 'spectator';
+        playerChannelBadge.textContent = isSpec ? 'Spectator VC' : 'Proximity VC';
+        playerChannelBadge.className = isSpec
+          ? 'font-mono text-[11px] text-purple-300'
+          : 'font-mono text-[11px] text-emerald-400';
+
+        const listener = state.audioCtx.listener;
+        const rad = (me.yaw || 0) * (Math.PI / 180);
+        const fx = -Math.sin(rad);
+        const fz = Math.cos(rad);
+
+        if (listener.positionX) {
+          listener.positionX.value = me.x || 0;
+          listener.positionY.value = me.y || 64;
+          listener.positionZ.value = me.z || 0;
+          listener.forwardX.value = fx;
+          listener.forwardY.value = 0;
+          listener.forwardZ.value = fz;
+        }
       }
 
       for (const [peerId, node] of state.remoteAudioNodes.entries()) {
-        if (!node || !node.audioEl) continue;
-
         if (state.deafened) {
-          node.audioEl.volume = 0;
+          node.gainNode.gain.setTargetAtTime(0, state.audioCtx.currentTime, 0.05);
           continue;
         }
 
-        const other = Object.values(state.worldPlayers).find(p => p.linkedPeerId === peerId);
-        if (!other) {
-          node.audioEl.volume = 1.0;
+        const other = findPlayerByPeerId(peerId);
+        // If Minecraft world hasn't reported coordinates yet, default to full volume so players can talk in lobby
+        if (!me || !other) {
+          node.gainNode.gain.setTargetAtTime(1.0, state.audioCtx.currentTime, 0.05);
           continue;
         }
 
-        const targetGain = getGainForPlayerName(other.name);
-        node.audioEl.volume = Math.max(0, Math.min(1, targetGain));
-        if (node.audioEl.paused) {
-          node.audioEl.play().catch(() => {});
+        const meSpec = me.gamemode === 'spectator';
+        const otherSpec = other.gamemode === 'spectator';
+
+        if (state.rules.spectatorIsolation) {
+          if (!meSpec && otherSpec) {
+            node.gainNode.gain.setTargetAtTime(0, state.audioCtx.currentTime, 0.05);
+            continue;
+          }
+          if (meSpec && otherSpec) {
+            node.gainNode.gain.setTargetAtTime(1.0, state.audioCtx.currentTime, 0.05);
+            continue;
+          }
+        }
+
+        if (node.panner.positionX) {
+          node.panner.positionX.value = other.x || 0;
+          node.panner.positionY.value = other.y || 64;
+          node.panner.positionZ.value = other.z || 0;
+        }
+
+        const dx = (other.x || 0) - (me.x || 0);
+        const dy = (other.y || 64) - (me.y || 64);
+        const dz = (other.z || 0) - (me.z || 0);
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        const targetGain = calculateProximityGain(
+          dist,
+          state.rules.minRange,
+          state.rules.maxRange,
+          state.rules.rolloff
+        );
+        node.gainNode.gain.setTargetAtTime(targetGain, state.audioCtx.currentTime, 0.05);
+      }
+    }
+
+    // --- 8. Master Persistent Watchdog & Fly.io Keep-Awake Loop ---
+    function startLifecycleWatchdogs() {
+      if (watchdogTimer) clearInterval(watchdogTimer);
+      watchdogTimer = setInterval(() => {
+        ensureAllConnectionsAlive();
+      }, 12000);
+
+      if (httpPingTimer) clearInterval(httpPingTimer);
+      httpPingTimer = setInterval(() => {
+        if (isSelfHostedServer()) {
+          // Ping our own Fly.io /healthz route every 25s so Fly proxy sees active HTTP traffic
+          const healthUrl = location.origin + "/healthz?t=" + Date.now();
+          fetch(healthUrl).catch(() => {});
+        }
+      }, 25000);
+    }
+
+    function ensureAllConnectionsAlive() {
+      if (!state.roomCode || !state.role) return;
+
+      ensureAudioContextAwake();
+
+      // 1. Reconnect PeerJS signaling broker if disconnected
+      if (state.peer && state.peer.disconnected && !state.peer.destroyed) {
+        try { state.peer.reconnect(); } catch (e) {}
+      }
+
+      // 2. Keep Player sockets, PeerJS DataChannel, and CLAIM_PLAYER registration alive
+      if (state.role === 'player') {
+        const myPeerId = state.peer ? state.peer.id : null;
+        if (myPeerId) {
+          const heartbeatClaim = {
+            bcafe: true,
+            room: state.roomCode,
+            type: 'CLAIM_PLAYER',
+            playerName: state.myPlayerName,
+            peerId: myPeerId
+          };
+
+          if (!state.hostConn || !state.hostConn.open) {
+            connectToHostPeerChannel(state.roomCode, state.myPlayerName, myPeerId);
+          } else {
+            try { state.hostConn.send(heartbeatClaim); } catch (e) {}
+          }
+
+          const hasOpenWs = state.wsRelays.some(w => w.readyState === WebSocket.OPEN || w.readyState === WebSocket.CONNECTING);
+          if (!hasOpenWs) {
+            connectPlayerRelaySockets(state.roomCode, state.myPlayerName, () => state.peer ? state.peer.id : null);
+          } else {
+            sendOverRelays(heartbeatClaim);
+            sendOverRelays({ bcafe: true, room: state.roomCode, type: 'PING', ts: Date.now() });
+          }
+
+          dialOtherLinkedPlayers();
+        }
+      }
+
+      // 3. Keep Host sockets & roster broadcasts alive
+      if (state.role === 'host') {
+        const hasOpenWs = state.wsRelays.some(w => w.readyState === WebSocket.OPEN || w.readyState === WebSocket.CONNECTING);
+        if (!hasOpenWs) {
+          connectHostWebSockets(state.roomCode);
+        } else {
+          sendOverRelays({ bcafe: true, room: state.roomCode, type: 'PING', ts: Date.now() });
+          broadcastRosterFromHost();
         }
       }
     }
 
-    document.addEventListener('click', () => {
-      if (state.audioCtx && state.audioCtx.state === 'suspended') {
-        state.audioCtx.resume();
+    // --- 9. Player Mute & Deafen Controls ---
+    function sendPlayerMicState(speaking = false) {
+      if (state.role !== 'player') return;
+      const payload = {
+        bcafe: true,
+        room: state.roomCode,
+        type: 'PLAYER_MIC_STATE',
+        playerName: state.myPlayerName,
+        muted: state.muted,
+        deafened: state.deafened,
+        speaking: speaking
+      };
+      if (state.bc) {
+        try { state.bc.postMessage(payload); } catch (e) {}
       }
-      for (const node of state.remoteAudioNodes.values()) {
-        if (node.audioEl && node.audioEl.paused) {
-          node.audioEl.play().catch(() => {});
-        }
+      if (state.hostConn && state.hostConn.open) {
+        try { state.hostConn.send(payload); } catch (e) {}
       }
+      sendOverRelays(payload);
+    }
+
+    function updatePlayerControlButtons() {
+      if (state.muted || state.deafened) {
+        playerMuteBtn.className = 'py-3.5 px-4 rounded-2xl bg-rosewood-500/20 border border-rosewood-500/30 text-rosewood-300 font-semibold text-sm flex items-center justify-center gap-2 transition';
+        muteBtnLabel.textContent = 'Muted';
+        playerMicStatusText.textContent = state.deafened ? 'Deafened' : 'Muted';
+        playerMicStatusText.className = 'font-mono text-[11px] text-rosewood-400';
+      } else {
+        playerMuteBtn.className = 'py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-800 border border-slate-700/80 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition';
+        muteBtnLabel.textContent = 'Mute';
+        playerMicStatusText.textContent = 'Active';
+        playerMicStatusText.className = 'font-mono text-[11px] text-sage-400';
+      }
+
+      if (state.deafened) {
+        playerDeafenBtn.className = 'py-3.5 px-4 rounded-2xl bg-rosewood-500/20 border border-rosewood-500/30 text-rosewood-300 font-semibold text-sm flex items-center justify-center gap-2 transition';
+        deafenBtnLabel.textContent = 'Deafened';
+      } else {
+        playerDeafenBtn.className = 'py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-800 border border-slate-700/80 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition';
+        deafenBtnLabel.textContent = 'Deafen';
+      }
+    }
+
+    // --- 10. UI Event Listeners ---
+    createHostBtn.addEventListener('click', () => {
+      const code = joinRoomInput.value.trim().toUpperCase() || generateCafeCode();
+      startHostSession(code);
+    });
+
+    joinPlayerBtn.addEventListener('click', () => {
+      const code = joinRoomInput.value.trim().toUpperCase();
+      const name = joinNameInput.value.trim();
+      if (!code) {
+        lobbyErrorMsg.textContent = 'Please enter a Table / Room Code first.';
+        lobbyErrorMsg.classList.remove('hidden');
+        return;
+      }
+      if (!name) {
+        lobbyErrorMsg.textContent = 'Please enter your exact Minecraft Gamertag.';
+        lobbyErrorMsg.classList.remove('hidden');
+        return;
+      }
+      startPlayerSession(code, name);
+    });
+
+    copyInviteLinkBtn.addEventListener('click', () => {
+      copyTextToClipboard(hostInviteUrlText.textContent, 'Player Invite Link');
+    });
+
+    copyMcCmdBtn.addEventListener('click', () => {
+      copyTextToClipboard(mcConnectCommand.textContent.trim(), 'Minecraft /connect Command');
+    });
+
+    copyBackupCmdBtn.addEventListener('click', () => {
+      copyTextToClipboard(mcBackupCloudCmd.textContent.trim(), 'Cloud Backup /connect Command');
+    });
+
+    manualPollBtn.addEventListener('click', () => {
+      pollMinecraftWorld();
+      broadcastRosterFromHost();
+      showToast('Synced world positions');
+    });
+
+    maxRangeInput.addEventListener('input', () => {
+      state.rules.maxRange = Number(maxRangeInput.value);
+      maxRangeLabel.textContent = `${state.rules.maxRange} blocks`;
+      broadcastRosterFromHost();
+    });
+
+    minRangeInput.addEventListener('input', () => {
+      state.rules.minRange = Number(minRangeInput.value);
+      minRangeLabel.textContent = `${state.rules.minRange} blocks`;
+      broadcastRosterFromHost();
+    });
+
+    rolloffSelect.addEventListener('change', () => {
+      state.rules.rolloff = rolloffSelect.value;
+      broadcastRosterFromHost();
+    });
+
+    spectatorToggleBtn.addEventListener('click', () => {
+      state.rules.spectatorIsolation = !state.rules.spectatorIsolation;
+      if (state.rules.spectatorIsolation) {
+        spectatorToggleBtn.textContent = 'ON';
+        spectatorToggleBtn.className = 'px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-medium transition';
+      } else {
+        spectatorToggleBtn.textContent = 'OFF';
+        spectatorToggleBtn.className = 'px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 text-xs font-mono font-medium transition';
+      }
+      broadcastRosterFromHost();
     });
 
     playerMuteBtn.addEventListener('click', () => {
       state.muted = !state.muted;
       if (state.localStream) {
-        state.localStream.getAudioTracks().forEach(t => {
+        state.localStream.getAudioTracks().forEach((t) => {
           t.enabled = !state.muted && !state.deafened;
         });
       }
@@ -1098,7 +1645,7 @@
     playerDeafenBtn.addEventListener('click', () => {
       state.deafened = !state.deafened;
       if (state.localStream) {
-        state.localStream.getAudioTracks().forEach(t => {
+        state.localStream.getAudioTracks().forEach((t) => {
           t.enabled = !state.muted && !state.deafened;
         });
       }
@@ -1107,36 +1654,56 @@
       sendPlayerMicState(false);
     });
 
-    function updatePlayerControlButtons() {
-      if (state.muted || state.deafened) {
-        playerMuteBtn.className = 'py-3.5 px-4 rounded-2xl bg-rosewood-500/20 border border-rosewood-400/40 text-rosewood-400 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5';
-        muteBtnLabel.textContent = 'Muted';
-        playerMicStatusText.textContent = state.deafened ? 'Deafened' : 'Muted';
-        playerMicStatusText.className = 'font-mono text-[11px] text-rosewood-400';
-      } else {
-        playerMuteBtn.className = 'py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-700 border border-cream-300/20 text-cream-100 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5';
-        muteBtnLabel.textContent = 'Mute';
-        playerMicStatusText.textContent = 'Active';
-        playerMicStatusText.className = 'font-mono text-[11px] text-sage-400';
-      }
-
-      if (state.deafened) {
-        playerDeafenBtn.className = 'py-3.5 px-4 rounded-2xl bg-rosewood-500/20 border border-rosewood-400/40 text-rosewood-400 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5';
-        deafenBtnLabel.textContent = 'Deafened';
-      } else {
-        playerDeafenBtn.className = 'py-3.5 px-4 rounded-2xl bg-navy-900 hover:bg-navy-700 border border-cream-300/20 text-cream-100 font-semibold text-xs transition flex flex-col items-center justify-center gap-1.5';
-        deafenBtnLabel.textContent = 'Deafen';
-      }
-    }
-
-    leaveBtn.addEventListener('click', () => {
+    leaveSessionBtn.addEventListener('click', () => {
       if (state.role === 'player' && state.myPlayerName) {
-        sendServer({
+        const leaveMsg = {
+          bcafe: true,
+          room: state.roomCode,
           type: 'LEAVE_PLAYER',
           playerName: state.myPlayerName
-        });
+        };
+        if (state.bc) {
+          try { state.bc.postMessage(leaveMsg); } catch (e) {}
+        }
+        sendOverRelays(leaveMsg);
       }
-      location.href = '/';
+
+      state.role = null;
+      state.roomCode = '';
+      if (hostPollTimer) clearInterval(hostPollTimer);
+      if (watchdogTimer) clearInterval(watchdogTimer);
+      if (httpPingTimer) clearInterval(httpPingTimer);
+      if (micAnimFrame) cancelAnimationFrame(micAnimFrame);
+
+      for (const ws of state.wsRelays) {
+        try { ws.onclose = null; ws.close(); } catch (e) {}
+      }
+      state.wsRelays = [];
+
+      if (state.peer) {
+        try { state.peer.destroy(); } catch (e) {}
+        state.peer = null;
+      }
+      if (state.localStream) {
+        state.localStream.getTracks().forEach((t) => t.stop());
+        state.localStream = null;
+      }
+
+      hostScreen.classList.add('hidden');
+      playerScreen.classList.add('hidden');
+      playerScreen.classList.remove('flex');
+      topStatusArea.classList.add('hidden');
+      topStatusArea.classList.remove('flex');
+      lobbyScreen.classList.remove('hidden');
+    });
+
+    // Pre-fill Room Code if ?room=CODE is in the URL
+    window.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(location.search);
+      const roomParam = params.get('room');
+      if (roomParam) {
+        joinRoomInput.value = roomParam.trim().toUpperCase();
+      }
     });
   </script>
 </body>
