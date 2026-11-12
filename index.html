@@ -405,6 +405,8 @@
         spectatorIsolation: true
       },
       worldPlayers: {},
+      uuidToName: {},
+      pendingCommandMap: new Map(),
       peer: null,
       hostConn: null,
       guestConns: new Map(),
@@ -747,9 +749,75 @@
       });
     }
 
+    function isUuidLike(str) {
+      if (!str || typeof str !== 'string') return false;
+      const s = str.trim();
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) || /^-?\d{8,}$/.test(s);
+    }
+
+    function findCanonicalPlayerKey(nameOrId) {
+      if (!nameOrId) return null;
+      const clean = String(nameOrId).trim();
+      if (state.uuidToName[clean]) return state.uuidToName[clean];
+      if (state.worldPlayers[clean]) return clean;
+      const lower = clean.toLowerCase();
+      for (const k of Object.keys(state.worldPlayers)) {
+        if (k.toLowerCase() === lower) return k;
+      }
+      return clean;
+    }
+
+    function mergeUuidIntoPlayerName(uuid, realName) {
+      if (!uuid || !realName || uuid === realName) return;
+      const canonical = findCanonicalPlayerKey(realName);
+      state.uuidToName[uuid] = canonical;
+      const uuidEntry = state.worldPlayers[uuid];
+      if (uuidEntry) {
+        const existingReal = state.worldPlayers[canonical] || {};
+        state.worldPlayers[canonical] = Object.assign({}, uuidEntry, existingReal, {
+          name: canonical,
+          uniqueId: uuid,
+          x: uuidEntry.x !== undefined ? uuidEntry.x : (existingReal.x || 0),
+          y: uuidEntry.y !== undefined ? uuidEntry.y : (existingReal.y || 64),
+          z: uuidEntry.z !== undefined ? uuidEntry.z : (existingReal.z || 0),
+          yaw: uuidEntry.yaw !== undefined ? uuidEntry.yaw : (existingReal.yaw || 0),
+          dimension: uuidEntry.dimension !== undefined ? uuidEntry.dimension : (existingReal.dimension || 0),
+          linkedPeerId: existingReal.linkedPeerId || uuidEntry.linkedPeerId || null
+        });
+        delete state.worldPlayers[uuid];
+      } else if (state.worldPlayers[canonical]) {
+        state.worldPlayers[canonical].uniqueId = uuid;
+      }
+    }
+
+    function sendTrackedMcCommand(commandLine, meta) {
+      const reqId = crypto.randomUUID();
+      state.pendingCommandMap.set(reqId, Object.assign({ ts: Date.now() }, meta || {}));
+      if (state.pendingCommandMap.size > 120) {
+        const oldestKeys = Array.from(state.pendingCommandMap.keys()).slice(0, 50);
+        oldestKeys.forEach((k) => state.pendingCommandMap.delete(k));
+      }
+      sendOverRelays(makeMcCommandRequest(commandLine, reqId));
+    }
+
     function pollMinecraftWorld() {
-      sendOverRelays(makeMcCommandRequest('querytarget @a', 'poll-pos-' + Date.now()));
-      sendOverRelays(makeMcCommandRequest('testfor @a[m=spectator]', 'poll-spec-' + Date.now()));
+      // 1. Discover all online player Gamertags in world
+      sendTrackedMcCommand('testfor @a', { kind: 'all_players' });
+      // 2. Discover spectator mode players
+      sendTrackedMcCommand('testfor @a[m=spectator]', { kind: 'spectators' });
+      // 3. Query all targets at once
+      sendTrackedMcCommand('querytarget @a', { kind: 'query_all' });
+
+      // 4. Query each known player by exact Gamertag so their XYZ updates directly on their name card
+      Object.keys(state.worldPlayers).forEach((pName) => {
+        if (!isUuidLike(pName)) {
+          const safeName = pName.replace(/"/g, '');
+          sendTrackedMcCommand('querytarget @a[name="' + safeName + '"]', {
+            kind: 'query_player',
+            playerName: pName
+          });
+        }
+      });
     }
 
     function updateMcStatusUI(connected) {
@@ -767,8 +835,10 @@
 
     function upsertWorldPlayer(name, patch) {
       if (!name) return;
-      const existing = state.worldPlayers[name] || {
-        name: name,
+      const canonical = findCanonicalPlayerKey(name);
+      if (isUuidLike(canonical)) return; // Never create a raw UUID entry in the roster
+      const existing = state.worldPlayers[canonical] || {
+        name: canonical,
         x: 0,
         y: 64,
         z: 0,
@@ -781,7 +851,10 @@
         speaking: false,
         lastSeenAt: Date.now()
       };
-      state.worldPlayers[name] = Object.assign(existing, patch, { lastSeenAt: Date.now() });
+      state.worldPlayers[canonical] = Object.assign(existing, patch, {
+        name: canonical,
+        lastSeenAt: Date.now()
+      });
     }
 
     function handleIncomingSocketFrame(rawData) {
@@ -804,39 +877,85 @@
         return;
       }
 
-      // 3. Handle genuine Minecraft Bedrock packets (PlayerTransform or querytargetcommandResponse)
+      // 3. Handle genuine Minecraft Bedrock packets (PlayerTransform, PlayerTravelled, or commandResponse)
       if (state.role === 'host') {
         let updated = false;
 
-        if (pkt.header && pkt.header.eventName === 'PlayerTransform' && pkt.body) {
+        if (pkt.header && (pkt.header.eventName === 'PlayerTransform' || pkt.header.eventName === 'PlayerTravelled') && pkt.body) {
           state.lastMcPacketAt = Date.now();
           updateMcStatusUI(true);
           const b = pkt.body;
-          const pName = (b.player && b.player.name) ? b.player.name : b.name;
-          const pos = b.position || b;
-          if (pName) {
-            upsertWorldPlayer(pName, {
+          const playerObj = b.player || b;
+          const rawName = (playerObj.name && !isUuidLike(playerObj.name)) ? playerObj.name : ((b.name && !isUuidLike(b.name)) ? b.name : null);
+          const rawUuid = String(playerObj.id || playerObj.uniqueId || b.id || '');
+          const pos = playerObj.position || b.position || b;
+
+          if (rawName && rawUuid) {
+            mergeUuidIntoPlayerName(rawUuid, rawName);
+          }
+
+          let targetKey = rawName || (rawUuid && state.uuidToName[rawUuid]) || null;
+          if (!targetKey) {
+            const nonUuidNames = Object.keys(state.worldPlayers).filter((k) => !isUuidLike(k));
+            if (nonUuidNames.length === 1) {
+              targetKey = nonUuidNames[0];
+              if (rawUuid) mergeUuidIntoPlayerName(rawUuid, targetKey);
+            }
+          }
+
+          if (targetKey && !isUuidLike(targetKey)) {
+            upsertWorldPlayer(targetKey, {
               x: Number(pos.x) || 0,
               y: Number(pos.y) || 64,
               z: Number(pos.z) || 0,
-              yaw: Number(b.yRot || pos.yRot || 0),
-              dimension: Number(b.dimension || 0)
+              yaw: Number(playerObj.yRot || b.yRot || pos.yRot || 0),
+              dimension: Number(playerObj.dimension || b.dimension || 0)
             });
             updated = true;
           }
         } else if (pkt.header && pkt.header.messagePurpose === 'commandResponse' && pkt.body) {
           state.lastMcPacketAt = Date.now();
           updateMcStatusUI(true);
+          const reqId = pkt.header.requestId || '';
+          const cmdMeta = state.pendingCommandMap.get(reqId) || {};
+          if (reqId) state.pendingCommandMap.delete(reqId);
 
-          // Parse querytarget @a details array
-          if ( pkt.body.details ) {
+          // A. Parse querytarget details array
+          if (pkt.body.details) {
             try {
               const details = typeof pkt.body.details === 'string' ? JSON.parse(pkt.body.details) : pkt.body.details;
+              const requestedPlayer = cmdMeta.playerName || null;
+
               if (Array.isArray(details)) {
-                details.forEach((ent) => {
-                  const pName = ent.name || ent.uniqueId;
-                  if (pName && ent.position) {
-                    upsertWorldPlayer(pName, {
+                const knownGamertags = Object.keys(state.worldPlayers).filter((k) => !isUuidLike(k));
+
+                details.forEach((ent, idx) => {
+                  if (!ent || !ent.position) return;
+                  const rawId = ent.uniqueId ? String(ent.uniqueId) : (ent.id ? String(ent.id) : null);
+                  const entName = (ent.name && !isUuidLike(ent.name)) ? ent.name : null;
+
+                  if (entName && rawId) {
+                    mergeUuidIntoPlayerName(rawId, entName);
+                  }
+                  if (requestedPlayer && rawId) {
+                    mergeUuidIntoPlayerName(rawId, requestedPlayer);
+                  }
+
+                  let resolvedName = requestedPlayer || entName || (rawId && state.uuidToName[rawId]) || null;
+
+                  if (!resolvedName) {
+                    if (details.length === 1 && knownGamertags.length === 1) {
+                      resolvedName = knownGamertags[0];
+                      if (rawId) mergeUuidIntoPlayerName(rawId, resolvedName);
+                    } else if (details.length === knownGamertags.length && knownGamertags[idx]) {
+                      resolvedName = knownGamertags[idx];
+                      if (rawId) mergeUuidIntoPlayerName(rawId, resolvedName);
+                    }
+                  }
+
+                  if (resolvedName && !isUuidLike(resolvedName)) {
+                    upsertWorldPlayer(resolvedName, {
+                      uniqueId: rawId || undefined,
                       x: Number(ent.position.x) || 0,
                       y: Number(ent.position.y) || 64,
                       z: Number(ent.position.z) || 0,
@@ -850,13 +969,39 @@
             } catch (e) {}
           }
 
-          // Parse testfor @a[m=spectator] victim array
+          // B. Parse testfor @a and testfor @a[m=spectator] victim arrays
           if (Array.isArray(pkt.body.victim)) {
-            const specSet = new Set(pkt.body.victim);
+            const victims = pkt.body.victim.filter((v) => v && !isUuidLike(v));
+
+            if (cmdMeta.kind === 'spectators') {
+              const specSet = new Set(victims.map((v) => findCanonicalPlayerKey(v)));
+              Object.keys(state.worldPlayers).forEach((pName) => {
+                state.worldPlayers[pName].gamemode = specSet.has(pName) ? 'spectator' : 'survival';
+              });
+              updated = true;
+            } else {
+              // General testfor @a response: ensure every online Gamertag is registered and queried immediately
+              victims.forEach((vName) => {
+                const canonical = findCanonicalPlayerKey(vName);
+                if (!state.worldPlayers[canonical]) {
+                  upsertWorldPlayer(canonical, {});
+                  const safeName = canonical.replace(/"/g, '');
+                  sendTrackedMcCommand('querytarget @a[name="' + safeName + '"]', {
+                    kind: 'query_player',
+                    playerName: canonical
+                  });
+                  updated = true;
+                }
+              });
+            }
+          } else if (cmdMeta.kind === 'spectators') {
+            // No spectators found in world -> mark all players survival
             Object.keys(state.worldPlayers).forEach((pName) => {
-              state.worldPlayers[pName].gamemode = specSet.has(pName) ? 'spectator' : 'survival';
+              if (state.worldPlayers[pName].gamemode !== 'survival') {
+                state.worldPlayers[pName].gamemode = 'survival';
+                updated = true;
+              }
             });
-            updated = true;
           }
         }
 
@@ -1378,7 +1523,8 @@
 
     function updateSpatialAudioForAllPeers() {
       if (state.role !== 'player' || !state.audioCtx) return;
-      const me = state.worldPlayers[state.myPlayerName];
+      const myKey = findCanonicalPlayerKey(state.myPlayerName);
+      const me = myKey ? state.worldPlayers[myKey] : null;
 
       if (me) {
         const isSpec = me.gamemode === 'spectator';
