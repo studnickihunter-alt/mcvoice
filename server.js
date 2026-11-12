@@ -6,6 +6,8 @@ const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 8080;
 const STATE_FILE = '/tmp/bcafe-state.json';
+const HTML_PATH = path.join(__dirname, 'index.html');
+const CACHED_HTML = fs.existsSync(HTML_PATH) ? fs.readFileSync(HTML_PATH) : Buffer.from('index.html not found');
 
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
@@ -27,7 +29,6 @@ const state = {
   worldPlayers: {}
 };
 
-// Restore last known player positions & rules if process ever restarts
 try {
   if (fs.existsSync(STATE_FILE)) {
     const saved = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
@@ -43,7 +44,7 @@ try {
           z: Number(p.z) || 0,
           yaw: Number(p.yaw) || 0,
           gamemode: p.gamemode || 'survival',
-          inWorld: Boolean(p.inWorld),
+          inWorld: true,
           linkedPeerId: null,
           wsConnected: false,
           muted: false,
@@ -62,40 +63,27 @@ function saveStateSnapshot() {
       JSON.stringify({
         rules: state.rules,
         worldPlayers: state.worldPlayers
-      }),
-      'utf8'
+      })
     );
   } catch (e) {}
 }
 
 const webClients = new Set();
+const pendingQueries = new Map();
 const disconnectTimers = new Map();
-
-let inFlightRequest = null;
-let pollTick = 0;
-let playerPollIndex = 0;
 
 const server = http.createServer((req, res) => {
   if (req.url && req.url.startsWith('/healthz')) {
-    res.writeHead(200, {
-      'Content-Type': 'text/plain',
-      'Cache-Control': 'no-store'
-    });
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
     res.end('ok');
     return;
   }
 
-  const htmlPath = path.join(__dirname, 'index.html');
-  if (fs.existsSync(htmlPath)) {
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store'
-    });
-    res.end(fs.readFileSync(htmlPath, 'utf8'));
-  } else {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.end('index.html not found');
-  }
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store'
+  });
+  res.end(CACHED_HTML);
 });
 
 server.keepAliveTimeout = 0;
@@ -114,7 +102,7 @@ const wss = new WebSocketServer({
 });
 
 function sendJson(ws, obj) {
-  if (ws && ws.readyState === 1) {
+  if (ws && ws.readyState === 1 && ws.bufferedAmount < 32768) {
     try {
       ws.send(JSON.stringify(obj));
     } catch (e) {}
@@ -134,7 +122,7 @@ function broadcastToBrowsers() {
     rules: state.rules
   });
   for (const client of webClients) {
-    if (client.readyState === 1) {
+    if (client.readyState === 1 && client.bufferedAmount < 32768) {
       try {
         client.send(str);
       } catch (e) {}
@@ -143,15 +131,17 @@ function broadcastToBrowsers() {
 }
 
 function sendMcCommand(ws, commandLine, meta) {
-  if (!ws || ws.readyState !== 1) return;
+  if (!ws || ws.readyState !== 1 || ws.bufferedAmount > 8192) return;
+  if (pendingQueries.size >= 4) {
+    pendingQueries.clear();
+  }
   const requestId = crypto.randomUUID();
   if (meta) {
-    inFlightRequest = {
-      requestId,
+    pendingQueries.set(requestId, {
       kind: meta.kind,
       playerName: meta.playerName || null,
       ts: Date.now()
-    };
+    });
   }
   sendJson(ws, {
     header: {
@@ -193,12 +183,6 @@ wss.on('connection', (ws, req) => {
   const reqUrl = req.url || '';
   const isBrowserUrl = reqUrl.includes('role=browser');
 
-  ws.clientId = crypto.randomUUID();
-  ws.isAlive = true;
-  ws.on('pong', () => {
-    ws.isAlive = true;
-  });
-
   if (isBrowserUrl) {
     ws.isBrowser = true;
     webClients.add(ws);
@@ -209,10 +193,30 @@ wss.on('connection', (ws, req) => {
     sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
   }
 
-  ws.on('message', (raw) => {
+  ws.on('message', (raw, isBinary) => {
+    const rawStr = isBinary ? raw.toString() : String(raw);
+
+    if (rawStr.includes('"VOICE_CHUNK"')) {
+      ws.isBrowser = true;
+      webClients.add(ws);
+      for (const client of webClients) {
+        if (
+          client !== ws &&
+          client.readyState === 1 &&
+          client.playerName &&
+          client.bufferedAmount < 16384
+        ) {
+          try {
+            client.send(rawStr);
+          } catch (e) {}
+        }
+      }
+      return;
+    }
+
     let msg;
     try {
-      msg = JSON.parse(raw.toString());
+      msg = JSON.parse(rawStr);
     } catch (e) {
       return;
     }
@@ -221,19 +225,12 @@ wss.on('connection', (ws, req) => {
     if (msg.bcafe) {
       ws.isBrowser = true;
       webClients.add(ws);
+      if (state.mcSocket === ws) {
+        state.mcSocket = null;
+      }
 
       if (msg.type === 'PING') {
         sendJson(ws, { bcafe: true, type: 'PONG' });
-        return;
-      }
-
-      // Direct WebRTC signaling relay between players
-      if (msg.type === 'RTC_SIGNAL' && msg.to && msg.from) {
-        for (const client of webClients) {
-          if (client !== ws && client.readyState === 1 && client.playerName === msg.to) {
-            sendJson(client, msg);
-          }
-        }
         return;
       }
 
@@ -250,8 +247,14 @@ wss.on('connection', (ws, req) => {
 
         ensurePlayerEntry(name);
         state.worldPlayers[name].wsConnected = true;
-        state.worldPlayers[name].linkedPeerId = msg.peerId || ws.clientId;
-        ws.peerId = state.worldPlayers[name].linkedPeerId;
+
+        if (msg.peerId && !msg.peerId.startsWith('ws-')) {
+          state.worldPlayers[name].linkedPeerId = msg.peerId;
+          ws.peerId = msg.peerId;
+        } else if (!state.worldPlayers[name].linkedPeerId) {
+          state.worldPlayers[name].linkedPeerId = `ws-${name}`;
+          ws.peerId = `ws-${name}`;
+        }
 
         broadcastToBrowsers();
       } else if (
@@ -292,7 +295,6 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
-    // Verified Minecraft packet
     if (msg.header || msg.body) {
       ws.isBrowser = false;
       webClients.delete(ws);
@@ -300,13 +302,8 @@ wss.on('connection', (ws, req) => {
       state.lastMcPacketAt = Date.now();
 
       const reqId = msg.header && msg.header.requestId;
-      const meta =
-        inFlightRequest && inFlightRequest.requestId === reqId
-          ? inFlightRequest
-          : null;
-      if (meta) {
-        inFlightRequest = null;
-      }
+      const meta = reqId ? pendingQueries.get(reqId) : null;
+      if (reqId) pendingQueries.delete(reqId);
 
       const body = msg.body || {};
 
@@ -333,15 +330,7 @@ wss.on('connection', (ws, req) => {
               .filter(Boolean);
           }
         }
-        if (names.length > 0) {
-          const onlineSet = new Set(names);
-          names.forEach((n) => ensurePlayerEntry(n));
-          Object.keys(state.worldPlayers).forEach((existing) => {
-            if (!state.worldPlayers[existing].wsConnected && !onlineSet.has(existing)) {
-              state.worldPlayers[existing].inWorld = false;
-            }
-          });
-        }
+        names.forEach((n) => ensurePlayerEntry(n));
       }
 
       if (typeof body.localplayername === 'string') {
@@ -403,13 +392,13 @@ wss.on('connection', (ws, req) => {
           state.worldPlayers[name].speaking = false;
           broadcastToBrowsers();
         }
-      }, 20000);
+      }, 25000);
       disconnectTimers.set(name, timer);
     }
 
     if (state.mcSocket === ws) {
       state.mcSocket = null;
-      inFlightRequest = null;
+      pendingQueries.clear();
       broadcastToBrowsers();
     }
   };
@@ -418,16 +407,19 @@ wss.on('connection', (ws, req) => {
   ws.on('error', cleanup);
 });
 
-// Single-command-at-a-time paced polling for Minecraft (never overflows MC queue, keeps proxy open)
+let pollTick = 0;
+let playerPollIndex = 0;
+
 setInterval(() => {
   const ws = state.mcSocket;
   if (!ws || ws.readyState !== 1) return;
 
   const now = Date.now();
-  if (inFlightRequest && now - inFlightRequest.ts < 1800) {
-    return;
+  for (const [k, v] of pendingQueries.entries()) {
+    if (now - v.ts > 1500) pendingQueries.delete(k);
   }
-  inFlightRequest = null;
+
+  if (pendingQueries.size > 0) return;
 
   pollTick++;
 
@@ -441,32 +433,51 @@ setInterval(() => {
     return;
   }
 
-  const activeNames = Object.keys(state.worldPlayers).filter(
-    (n) => state.worldPlayers[n].inWorld !== false
-  );
-
-  if (activeNames.length === 0) {
+  const names = Object.keys(state.worldPlayers);
+  if (names.length === 0) {
     sendMcCommand(ws, 'getlocalplayername', { kind: 'localname' });
     return;
   }
 
-  if (playerPollIndex >= activeNames.length) {
+  if (playerPollIndex >= names.length) {
     playerPollIndex = 0;
   }
-  const targetName = activeNames[playerPollIndex++];
+  const targetName = names[playerPollIndex++];
   sendMcCommand(ws, `querytarget @a[name="${targetName}"]`, {
     kind: 'pos',
     playerName: targetName
   });
-}, 450);
+}, 500);
 
-// Keep browser sockets alive and persist state to /tmp every 8 seconds
+// Delete old cached objects, prune dead clients, save state, and force garbage collection every 15s
 setInterval(() => {
-  saveStateSnapshot();
+  pendingQueries.clear();
+
   for (const client of webClients) {
-    sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
+    if (client.readyState !== 1) {
+      webClients.delete(client);
+    } else {
+      sendJson(client, { bcafe: true, type: 'KEEPALIVE' });
+    }
   }
-}, 8000);
+
+  const playerKeys = Object.keys(state.worldPlayers);
+  if (playerKeys.length > 40) {
+    for (const k of playerKeys) {
+      if (!state.worldPlayers[k].wsConnected && !state.worldPlayers[k].linkedPeerId) {
+        delete state.worldPlayers[k];
+      }
+    }
+  }
+
+  saveStateSnapshot();
+
+  if (typeof global.gc === 'function') {
+    try {
+      global.gc();
+    } catch (e) {}
+  }
+}, 15000);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Bedrock Cafe listening on port ${PORT}`);
