@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node --max-old-space-size=128 server.js"
+    "start": "node --expose-gc --max-old-space-size=150 server.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
