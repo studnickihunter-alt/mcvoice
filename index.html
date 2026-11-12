@@ -451,7 +451,7 @@
         if (state.pingTimer) clearInterval(state.pingTimer);
         state.pingTimer = setInterval(() => {
           sendServer({ type: 'PING' });
-        }, 5000);
+        }, 15000);
       };
 
       ws.onmessage = (ev) => {
@@ -491,7 +491,7 @@
 
       ws.onclose = () => {
         if (state.pingTimer) clearInterval(state.pingTimer);
-        setTimeout(connectWebSocket, 300);
+        setTimeout(connectWebSocket, 500);
       };
     }
 
