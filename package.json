@@ -1,11 +1,15 @@
 {
-  "name": "bedrock-cafe",
-  "version": "1.0.0",
+  "name": "bedrock-cafe-proxvc",
+  "version": "6.1.0",
+  "description": "Persistent Minecraft Bedrock Proximity Voice Chat Server & Web App for Fly.io",
   "main": "server.js",
   "scripts": {
-    "start": "node --expose-gc --max-old-space-size=150 server.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.16.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
